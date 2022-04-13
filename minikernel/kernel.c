@@ -1,9 +1,9 @@
 /*
  *  kernel/kernel.c
  *
- *  Minikernel. Versión 1.0
+ *  Minikernel. Versiï¿½n 1.0
  *
- *  Fernando Pérez Costoya
+ *  Fernando Pï¿½rez Costoya
  *
  */
 
@@ -23,7 +23,7 @@
  */
 
 /*
- * Función que inicia la tabla de procesos
+ * Funciï¿½n que inicia la tabla de procesos
  */
 static void iniciar_tabla_proc(){
 	int i;
@@ -33,7 +33,7 @@ static void iniciar_tabla_proc(){
 }
 
 /*
- * Función que busca una entrada libre en la tabla de procesos
+ * Funciï¿½n que busca una entrada libre en la tabla de procesos
  */
 static int buscar_BCP_libre(){
 	int i;
@@ -107,14 +107,14 @@ static void espera_int(){
 
 	printk("-> NO HAY LISTOS. ESPERA INT\n");
 
-	/* Baja al mínimo el nivel de interrupción mientras espera */
+	/* Baja al mï¿½nimo el nivel de interrupciï¿½n mientras espera */
 	nivel=fijar_nivel_int(NIVEL_1);
 	halt();
 	fijar_nivel_int(nivel);
 }
 
 /*
- * Función de planificacion que implementa un algoritmo FIFO.
+ * Funciï¿½n de planificacion que implementa un algoritmo FIFO.
  */
 static BCP * planificador(){
 	while (lista_listos.primero==NULL)
@@ -145,7 +145,7 @@ static void liberar_proceso(){
 
 	liberar_pila(p_proc_anterior->pila);
 	cambio_contexto(NULL, &(p_proc_actual->contexto_regs));
-        return; /* no debería llegar aqui */
+        return; /* no deberï¿½a llegar aqui */
 }
 
 /*
@@ -171,7 +171,7 @@ static void exc_arit(){
 	printk("-> EXCEPCION ARITMETICA EN PROC %d\n", p_proc_actual->id);
 	liberar_proceso();
 
-        return; /* no debería llegar aqui */
+        return; /* no deberï¿½a llegar aqui */
 }
 
 /*
@@ -186,7 +186,7 @@ static void exc_mem(){
 	printk("-> EXCEPCION DE MEMORIA EN PROC %d\n", p_proc_actual->id);
 	liberar_proceso();
 
-        return; /* no debería llegar aqui */
+        return; /* no deberï¿½a llegar aqui */
 }
 
 /*
@@ -324,12 +324,41 @@ int sis_terminar_proceso(){
 
 	liberar_proceso();
 
-        return 0; /* no debería llegar aqui */
+        return 0; /* no deberï¿½a llegar aqui */
 }
 
 /*
+* Devuelve el identificador del proceso actual
+*
+*/
+
+int obtener_id_pr(){
+
+   return p_proc_actual->id;
+} 
+
+/*
+ * Duerme al proceso actual durante los segundos especificados en el argumento
+ * de entrada. Se realiza un cambio de proceso a uno que este libre.
+ * 
+ * 
+*/
+
+int dormir(unsigned int segundos){
+   
+
+
+
+
+}
+
+
+
+
+
+/*
  *
- * Rutina de inicialización invocada en arranque
+ * Rutina de inicializaciï¿½n invocada en arranque
  *
  */
 int main(){
