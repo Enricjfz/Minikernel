@@ -208,6 +208,16 @@ static void int_reloj(){
 
 	printk("-> TRATANDO INT. DE RELOJ\n");
 
+	//concurrencia de listas --- evitar interrupciones cuando se manejan listas
+	// falta cambiar el nivel de interrupcion para evitar problemas de sincro
+	if(lista_dormidos.primero != NULL){
+       BCP * p_proc_dormido = lista_dormidos.primero;
+	   eliminar_elem(&lista_dormidos, p_proc_dormido);
+	   p_proc_dormido->dormido = 0;
+	   p_proc_dormido->estado = LISTO;
+	   insertar_ultimo(&lista_listos,p_proc_dormido);
+	} 
+
         return;
 }
 
@@ -266,6 +276,7 @@ static int crear_tarea(char *prog){
 			&(p_proc->contexto_regs));
 		p_proc->id=proc;
 		p_proc->estado=LISTO;
+		p_proc->dormido = 0;
 
 		/* lo inserta al final de cola de listos */
 		insertar_ultimo(&lista_listos, p_proc);
@@ -337,6 +348,24 @@ int obtener_id_pr(){
    return p_proc_actual->id;
 } 
 
+
+/*
+ * Función auxiliar de dormir que modifica la BCP del proceso, añade el proceso a la lista de BCPs dormidos, configura la interrupción
+ * de reloj y llama al planificador
+ *
+ */
+
+static void aux_dormir(unsigned int segundos, lista_BCPs * lista_dormidos){
+   p_proc_actual->dormido = 1;
+   insertar_ultimo(lista_dormidos, p_proc_actual);
+   p_proc_actual->estado = BLOQUEADO;
+   BCP * p_proc_anterior = p_proc_actual;
+   // falta programar la interrupción
+   p_proc_actual = planificador();
+   cambio_contexto(&(p_proc_anterior->contexto_regs), &(p_proc_actual->contexto_regs));
+
+}
+
 /*
  * Duerme al proceso actual durante los segundos especificados en el argumento
  * de entrada. Se realiza un cambio de proceso a uno que este libre.
@@ -345,10 +374,8 @@ int obtener_id_pr(){
 */
 
 int dormir(unsigned int segundos){
-   
-
-
-
+   aux_dormir(segundos, &lista_dormidos);
+   return 1;
 
 }
 

@@ -37,6 +37,7 @@ typedef struct BCP_t {
         void * pila;			/* dir. inicial de la pila */
 	BCPptr siguiente;		/* puntero a otro BCP */
 	void *info_mem;			/* descriptor del mapa de memoria */
+	int dormido;            /* entero que indica si esta dormido 1 o no 0 */
 } BCP;
 
 /*
@@ -69,6 +70,12 @@ BCP tabla_procs[MAX_PROC];
  * Variable global que representa la cola de procesos listos
  */
 lista_BCPs lista_listos= {NULL, NULL};
+
+/*
+ * Variable global que representa la cola de procesos dormidos 
+ */
+
+lista_BCPs lista_dormidos = {NULL, NULL}; 
 
 /*
  *
