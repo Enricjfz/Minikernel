@@ -38,6 +38,8 @@ typedef struct BCP_t {
 	BCPptr siguiente;		/* puntero a otro BCP */
 	void *info_mem;			/* descriptor del mapa de memoria */
 	int dormido;            /* entero que indica si esta dormido 1 o no 0 */
+	int interrupciones;    /* entero que indica cuantas interrupciones quedan hasta que se active el evento */
+
 } BCP;
 
 /*
@@ -76,6 +78,18 @@ lista_BCPs lista_listos= {NULL, NULL};
  */
 
 lista_BCPs lista_dormidos = {NULL, NULL}; 
+
+/*
+*
+* Definición de la estructura tiempos_ejec que se utiliza en la funcionalidad
+* de tiempos_proceso
+*
+*/
+
+typedef struct tiempos_ejec {
+    int usuario; //numero de interrupciones que ha recibido el proceso en modo usuario
+    int sistema; //numero de interrupciones que ha recibido el proceso en modo sistema
+};
 
 /*
  *

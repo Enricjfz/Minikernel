@@ -15,6 +15,10 @@
 
 #include "kernel.h"	/* Contiene defs. usadas por este modulo */
 
+int acc_t_ejec = 0; //flag que indica si el proceso esta accediendo a la estructura tiempos_ejec
+int num_int_total = 0; //entero que indica el numero de interrupciones totales en el sistema
+int num_int_anterior = 0; //entero que indica el numero de interrupciones en la llamada de tiempos_proc
+
 /*
  *
  * Funciones relacionadas con la tabla de procesos:
@@ -208,6 +212,8 @@ static void int_reloj(){
 
 	printk("-> TRATANDO INT. DE RELOJ\n");
 
+    num_int_total++;	
+
 	//concurrencia de listas --- evitar interrupciones cuando se manejan listas
 	// falta cambiar el nivel de interrupcion para evitar problemas de sincro
 	if(lista_dormidos.primero != NULL){
@@ -357,6 +363,7 @@ int obtener_id_pr(){
 
 static void aux_dormir(unsigned int segundos, lista_BCPs * lista_dormidos){
    p_proc_actual->dormido = 1;
+   p_proc_actual->interrupciones = segundos * TICK;
    insertar_ultimo(lista_dormidos, p_proc_actual);
    p_proc_actual->estado = BLOQUEADO;
    BCP * p_proc_anterior = p_proc_actual;
@@ -378,6 +385,31 @@ int dormir(unsigned int segundos){
    return 1;
 
 }
+
+int tiempos_proceso(struct tiempos_ejec *t_ejec){
+   if(t_ejec == NULL)
+  {
+	  acc_t_ejec = 1;
+      //codigo 
+	  acc_t_ejec = 0;
+
+  } 
+  if(num_int_anterior == 0)
+ {
+	 //primera llamada
+	 num_int_anterior = num_int_total;
+ } 
+ else{
+	 //llamadas sucesivas 
+
+	 num_int_anterior = num_int_total - num_int_anterior;
+ } 
+
+ return num_int_anterior/TICK;
+	 
+
+}
+
 
 
 

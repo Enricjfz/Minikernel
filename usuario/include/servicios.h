@@ -22,6 +22,18 @@
 /* Evita el uso del printf de la bilioteca est�ndar */
 #define printf escribirf
 
+/*
+*
+* Definición de la estructura tiempos_ejec que se utiliza en la funcionalidad
+* de tiempos_proceso
+*
+*/
+
+typedef struct tiempos_ejec {
+    int usuario; //numero de interrupciones que ha recibido el proceso en modo usuario
+    int sistema; //numero de interrupciones que ha recibido el proceso en modo sistema
+};
+
 /* Funcion de biblioteca */
 int escribirf(const char *formato, ...);
 
