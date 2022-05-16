@@ -18,6 +18,8 @@
 int acc_t_ejec = 0; //flag que indica si el proceso esta accediendo a la estructura tiempos_ejec
 int num_int_total = 0; //entero que indica el numero de interrupciones totales en el sistema
 int num_int_anterior = 0; //entero que indica el numero de interrupciones en la llamada de tiempos_proc
+int num_int_usuario = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo usuario
+int num_int_sistema = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo sistema
 
 /*
  *
@@ -211,8 +213,18 @@ static void int_terminal(){
 static void int_reloj(){
 
 	printk("-> TRATANDO INT. DE RELOJ\n");
+	
 
     num_int_total++;	
+
+	if(viene_de_modo_usuario()){
+      num_int_usuario++;
+
+	} 
+	else{
+     num_int_sistema++;
+
+	} 
 
 	//concurrencia de listas --- evitar interrupciones cuando se manejan listas
 	// falta cambiar el nivel de interrupcion para evitar problemas de sincro
@@ -387,10 +399,13 @@ int dormir(unsigned int segundos){
 }
 
 int tiempos_proceso(struct tiempos_ejec *t_ejec){
-   if(t_ejec == NULL)
+   if(t_ejec != NULL)
   {
 	  acc_t_ejec = 1;
-      //codigo 
+      //accedemos a memoria de proceso
+	  t_ejec->sistema = num_int_sistema;
+	  t_ejec->usuario = num_int_usuario; 
+
 	  acc_t_ejec = 0;
 
   } 
@@ -409,6 +424,28 @@ int tiempos_proceso(struct tiempos_ejec *t_ejec){
 	 
 
 }
+
+int crear_mutex(char *nombre, int tipo){
+
+
+}
+
+int abrir_mutex(char *nombre){
+
+
+} 
+int lock(unsigned int mutexid){
+
+
+} 
+int unlock(unsigned int mutexid){
+
+
+} 
+int cerrar_mutex(unsigned int mutexid){
+
+	
+} 
 
 
 

@@ -22,6 +22,9 @@
 #include "HAL.h"
 #include "llamsis.h"
 
+#define NO_RECURSIVO 0
+#define RECURSIVO 1
+
 /*
  *
  * Definicion del tipo que corresponde con el BCP.

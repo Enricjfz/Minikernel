@@ -34,6 +34,12 @@ typedef struct tiempos_ejec {
     int sistema; //numero de interrupciones que ha recibido el proceso en modo sistema
 };
 
+/*Variables para mutex */
+
+
+#define NO_RECURSIVO 0
+#define RECURSIVO 1
+
 /* Funcion de biblioteca */
 int escribirf(const char *formato, ...);
 
