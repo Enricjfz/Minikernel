@@ -14,12 +14,17 @@
  */
 
 #include "kernel.h"	/* Contiene defs. usadas por este modulo */
+#include <string.h>
+
+
+
 
 int acc_t_ejec = 0; //flag que indica si el proceso esta accediendo a la estructura tiempos_ejec
 int num_int_total = 0; //entero que indica el numero de interrupciones totales en el sistema
 int num_int_anterior = 0; //entero que indica el numero de interrupciones en la llamada de tiempos_proc
 int num_int_usuario = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo usuario
 int num_int_sistema = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo sistema
+int num_actual_mutex = 0; //entero que indica el numero de mutex abiertos en el sistema
 
 /*
  *
@@ -295,6 +300,7 @@ static int crear_tarea(char *prog){
 		p_proc->id=proc;
 		p_proc->estado=LISTO;
 		p_proc->dormido = 0;
+		p_proc->num_mutex_abiertos = 0;
 
 		/* lo inserta al final de cola de listos */
 		insertar_ultimo(&lista_listos, p_proc);
@@ -425,20 +431,88 @@ int tiempos_proceso(struct tiempos_ejec *t_ejec){
 
 }
 
-int crear_mutex(char *nombre, int tipo){
+int abrir_mutex(char *nombre){
 
+	for (int i = 0; i <= num_actual_mutex; i++){
+		if(strcmp(vectorMutex[i].nombre,nombre)== 0){
+			return i; //se encuentra el mutex en el vector de mutex
+		} 
+		
+	} 
+	return -1; //no se encuentra
+
+
+} 
+
+int crear_mutex(char *nombre, int tipo){
+	if(tipo != NO_RECURSIVO && tipo != RECURSIVO){
+		return -1; //no existe ese tipo de mutex
+	} 
+	int length = sizeof(nombre) / sizeof(char *);
+	if(length > MAX_NOM_MUT){
+		return -2; //el nombre del mutex es mayor que máximo
+	}  
+
+	if(num_actual_mutex + 1 >= NUM_MUT){
+		return -3; //se ha excedido el numero máximo de mutex en el sistema
+	} 
+
+	if(abrir_mutex(nombre) != -1){
+		return -4; //existe un mutex con ese nombre
+	} 
+    
+	Mutex newMutex;
+	newMutex.id_proc_actual = -1; // no hay proceso asociado al mutex
+	newMutex.nombre = nombre;
+	newMutex.tipo = tipo;
+	newMutex.n_locks = 0;
+	num_actual_mutex++;
+	vectorMutex[num_actual_mutex] = newMutex; 
+    //mutex creado y guardado
+	return num_actual_mutex;
 
 }
 
-int abrir_mutex(char *nombre){
+static void aux_lock(lista_BCPs * lista_bloqueados_mutex){
+   insertar_ultimo(lista_bloqueados_mutex, p_proc_actual);
+   p_proc_actual->estado = BLOQUEADO;
+   BCP * p_proc_anterior = p_proc_actual;
+   // falta programar la interrupción
+   p_proc_actual = planificador();
+   cambio_contexto(&(p_proc_anterior->contexto_regs), &(p_proc_actual->contexto_regs));
 
+}
 
-} 
 int lock(unsigned int mutexid){
+	if(vectorMutex[mutexid].id_proc_actual != -1 && vectorMutex[mutexid].id_proc_actual != p_proc_actual){
+		//se encuentra usado por un proceso distinto al actual
+		vectorMutex[mutexid].proc_bloqueados[p_proc_actual->id] = 1; 
+		//bloqueo del proceso y cambio de contexto 
+		aux_lock(&lista_bloqueados_mutex);
+		return -1;
+	} 
+	else if(vectorMutex[mutexid].id_proc_actual == p_proc_actual){
+        if(vectorMutex[mutexid].tipo == RECURSIVO){
+			vectorMutex[mutexid].n_locks++; 
+			
+		} 
+		else{
+			return -2; //no se puede hacer mas de un lock si este no es recursivo
+		} 
+	} 
+	else{
+       //el mutex esta libre
+	   vectorMutex[mutexid].id_proc_actual = p_proc_actual->id;
+	   p_proc_actual->vectorMutexAbiertos[p_proc_actual->num_mutex_abiertos] = vectorMutex[mutexid]; 
+	   p_proc_actual->num_mutex_abiertos++; 
+	   
+	} 
 
-
+   return 1;
+   
 } 
 int unlock(unsigned int mutexid){
+
 
 
 } 

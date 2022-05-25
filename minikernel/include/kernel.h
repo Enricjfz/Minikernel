@@ -25,12 +25,29 @@
 #define NO_RECURSIVO 0
 #define RECURSIVO 1
 
+/** Definición de la estructura Mutex, que almacena la información asociada a un Mutex **/
+
+typedef struct Mutex_t {
+   char * nombre;  //nombre del struct
+   int tipo;   //tipo del struct 0/1
+   int id_proc_actual;  //id del proceso que tiene el struct
+   int proc_bloqueados[MAX_PROC]; //procesos solicitantes del struct
+   int n_locks; // solo si es recursivo, numero de veces que se ha hecho lock
+
+} Mutex;
+
+/** Definición del vector de structs, que almacena el numero de structs que hay en el sistema **/
+
+struct Mutex_t vectorMutex[NUM_MUT];
+
+
 /*
  *
  * Definicion del tipo que corresponde con el BCP.
  * Se va a modificar al incluir la funcionalidad pedida.
  *
  */
+
 typedef struct BCP_t *BCPptr;
 
 typedef struct BCP_t {
@@ -42,6 +59,8 @@ typedef struct BCP_t {
 	void *info_mem;			/* descriptor del mapa de memoria */
 	int dormido;            /* entero que indica si esta dormido 1 o no 0 */
 	int interrupciones;    /* entero que indica cuantas interrupciones quedan hasta que se active el evento */
+	struct Mutex_t vectorMutexAbiertos[NUM_MUT_PROC]; /*vector de mutex abiertos por el proceso */
+	int num_mutex_abiertos; /*manejo vertor mutex*/
 
 } BCP;
 
@@ -82,6 +101,12 @@ lista_BCPs lista_listos= {NULL, NULL};
 
 lista_BCPs lista_dormidos = {NULL, NULL}; 
 
+/** lista de procesos bloqueados a la espera de un mutex **/
+
+lista_BCPs lista_bloqueados_mutex = {NULL, NULL};
+
+
+
 /*
 *
 * Definición de la estructura tiempos_ejec que se utiliza en la funcionalidad
@@ -93,6 +118,8 @@ typedef struct tiempos_ejec {
     int usuario; //numero de interrupciones que ha recibido el proceso en modo usuario
     int sistema; //numero de interrupciones que ha recibido el proceso en modo sistema
 };
+
+
 
 /*
  *
