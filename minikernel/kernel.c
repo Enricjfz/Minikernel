@@ -431,16 +431,41 @@ int tiempos_proceso(struct tiempos_ejec *t_ejec){
 
 }
 
+
+static void aux_mutex(lista_BCPs * lista_bloqueados_mutex){
+   insertar_ultimo(lista_bloqueados_mutex, p_proc_actual);
+   p_proc_actual->estado = BLOQUEADO;
+   BCP * p_proc_anterior = p_proc_actual;
+   // falta programar la interrupción
+   p_proc_actual = planificador();
+   cambio_contexto(&(p_proc_anterior->contexto_regs), &(p_proc_actual->contexto_regs));
+
+}
+
+
 int abrir_mutex(char *nombre){
 
 	for (int i = 0; i <= num_actual_mutex; i++){
-		if(strcmp(vectorMutex[i].nombre,nombre)== 0){
+		if(strcmp(vectorMutex[i]->nombre,nombre)== 0){
 			return i; //se encuentra el mutex en el vector de mutex
 		} 
 		
 	} 
 	return -1; //no se encuentra
 
+
+} 
+
+static int id_vector_mutex(struct Mutex_t *vector[],int length){
+	int sol = 0;
+	for (int i = 0; i < length; i++){
+		if(vector[i] == NULL){
+            //primer espacio libre del vector de mutex que esta libre
+			sol = i;
+			break;
+		} 
+	} 
+	return sol;
 
 } 
 
@@ -454,6 +479,9 @@ int crear_mutex(char *nombre, int tipo){
 	}  
 
 	if(num_actual_mutex + 1 >= NUM_MUT){
+        //el proceso se bloquea y se produce un cambio de contexto
+       aux_mutex(&lista_bloqueados_abrir_mutex);
+
 		return -3; //se ha excedido el numero máximo de mutex en el sistema
 	} 
 
@@ -466,34 +494,29 @@ int crear_mutex(char *nombre, int tipo){
 	newMutex.nombre = nombre;
 	newMutex.tipo = tipo;
 	newMutex.n_locks = 0;
+	int mutexid = id_vector_mutex(&vectorMutex,num_actual_mutex);
+	vectorMutex[mutexid] = &newMutex; 
 	num_actual_mutex++;
-	vectorMutex[num_actual_mutex] = newMutex; 
     //mutex creado y guardado
 	return num_actual_mutex;
 
 }
 
-static void aux_lock(lista_BCPs * lista_bloqueados_mutex){
-   insertar_ultimo(lista_bloqueados_mutex, p_proc_actual);
-   p_proc_actual->estado = BLOQUEADO;
-   BCP * p_proc_anterior = p_proc_actual;
-   // falta programar la interrupción
-   p_proc_actual = planificador();
-   cambio_contexto(&(p_proc_anterior->contexto_regs), &(p_proc_actual->contexto_regs));
 
-}
+
 
 int lock(unsigned int mutexid){
-	if(vectorMutex[mutexid].id_proc_actual != -1 && vectorMutex[mutexid].id_proc_actual != p_proc_actual){
+	if(vectorMutex[mutexid]->id_proc_actual != -1 && vectorMutex[mutexid]->id_proc_actual != p_proc_actual){
 		//se encuentra usado por un proceso distinto al actual
-		vectorMutex[mutexid].proc_bloqueados[p_proc_actual->id] = 1; 
+		vectorMutex[mutexid]->proc_bloqueados[p_proc_actual->id] = p_proc_actual; 
 		//bloqueo del proceso y cambio de contexto 
-		aux_lock(&lista_bloqueados_mutex);
+		aux_mutex(&lista_bloqueados_mutex);
 		return -1;
 	} 
-	else if(vectorMutex[mutexid].id_proc_actual == p_proc_actual){
-        if(vectorMutex[mutexid].tipo == RECURSIVO){
-			vectorMutex[mutexid].n_locks++; 
+	else if(vectorMutex[mutexid]->id_proc_actual == p_proc_actual){
+		//se hace lock a un mutex que tiene el proceso
+        if(vectorMutex[mutexid]->tipo == RECURSIVO){
+			vectorMutex[mutexid]->n_locks++; //mutex recursivo
 			
 		} 
 		else{
@@ -502,8 +525,9 @@ int lock(unsigned int mutexid){
 	} 
 	else{
        //el mutex esta libre
-	   vectorMutex[mutexid].id_proc_actual = p_proc_actual->id;
-	   p_proc_actual->vectorMutexAbiertos[p_proc_actual->num_mutex_abiertos] = vectorMutex[mutexid]; 
+	   vectorMutex[mutexid]->id_proc_actual = p_proc_actual->id;
+	   int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,p_proc_actual->num_mutex_abiertos);
+	   p_proc_actual->vectorMutexAbiertos[pos] = vectorMutex[mutexid]; 
 	   p_proc_actual->num_mutex_abiertos++; 
 	   
 	} 
@@ -512,6 +536,32 @@ int lock(unsigned int mutexid){
    
 } 
 int unlock(unsigned int mutexid){
+	int pos = get_id_proc(mutexid);
+	if(pos == -1){
+		return -1; //el proceso no tiene ese mutex abierto
+	} 
+	if(p_proc_actual->vectorMutexAbiertos[pos]->tipo == RECURSIVO){
+		p_proc_actual->vectorMutexAbiertos[pos]->n_locks--;
+		if(p_proc_actual->vectorMutexAbiertos[pos]->n_locks == 0){
+			//se libera mutex y desbloquea proceso
+			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
+			p_proc_actual->num_mutex_abiertos--;
+			//se desbloquea el primer proceso bloqueado
+			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
+			return 1;
+		} 
+
+	} 
+	else{
+		    // mutex no recursivo, se libera
+			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
+			p_proc_actual->num_mutex_abiertos--;
+			//se desbloquea el primer proceso bloqueado
+			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
+			return 1;
+
+	} 
+
 
 
 

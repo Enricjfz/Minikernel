@@ -31,14 +31,14 @@ typedef struct Mutex_t {
    char * nombre;  //nombre del struct
    int tipo;   //tipo del struct 0/1
    int id_proc_actual;  //id del proceso que tiene el struct
-   int proc_bloqueados[MAX_PROC]; //procesos solicitantes del struct
+   struct BCP * proc_bloqueados[MAX_PROC]; //procesos solicitantes del struct
    int n_locks; // solo si es recursivo, numero de veces que se ha hecho lock
 
 } Mutex;
 
 /** Definición del vector de structs, que almacena el numero de structs que hay en el sistema **/
 
-struct Mutex_t vectorMutex[NUM_MUT];
+struct Mutex_t * vectorMutex[NUM_MUT];
 
 
 /*
@@ -59,7 +59,7 @@ typedef struct BCP_t {
 	void *info_mem;			/* descriptor del mapa de memoria */
 	int dormido;            /* entero que indica si esta dormido 1 o no 0 */
 	int interrupciones;    /* entero que indica cuantas interrupciones quedan hasta que se active el evento */
-	struct Mutex_t vectorMutexAbiertos[NUM_MUT_PROC]; /*vector de mutex abiertos por el proceso */
+	struct Mutex_t * vectorMutexAbiertos[NUM_MUT_PROC]; /*vector de mutex abiertos por el proceso */
 	int num_mutex_abiertos; /*manejo vertor mutex*/
 
 } BCP;
@@ -104,6 +104,10 @@ lista_BCPs lista_dormidos = {NULL, NULL};
 /** lista de procesos bloqueados a la espera de un mutex **/
 
 lista_BCPs lista_bloqueados_mutex = {NULL, NULL};
+
+/** lista bloqueados abrir_mutex **/
+
+lista_BCPs lista_bloqueados_abrir_mutex ={NULL, NULL}; 
 
 
 
