@@ -31,7 +31,7 @@ typedef struct Mutex_t {
    char * nombre;  //nombre del struct
    int tipo;   //tipo del struct 0/1
    int id_proc_actual;  //id del proceso que tiene el struct
-   struct BCP * proc_bloqueados[MAX_PROC]; //procesos solicitantes del struct
+   struct BCP_t * proc_bloqueados[MAX_PROC]; //procesos solicitantes del struct
    int n_locks; // solo si es recursivo, numero de veces que se ha hecho lock
 
 } Mutex;

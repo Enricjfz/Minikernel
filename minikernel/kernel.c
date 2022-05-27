@@ -535,6 +535,27 @@ int lock(unsigned int mutexid){
    return 1;
    
 } 
+
+//método auxiliar que desbloquea un proceso asociado a un mutex y lo inserta en la lista de procesos listos
+
+static void desbloqueoProceso(lista_BCPs lista_bloqueados, Mutex  * mutex){
+   
+   for (int i = 0; i < MAX_PROC; i++){
+       if(mutex->proc_bloqueados[i] != NULL){
+		   BCP * proc_bloqueado;
+		   proc_bloqueado = mutex->proc_bloqueados[i]; 
+		   proc_bloqueado->estado = LISTO;
+		   eliminar_elem(&lista_bloqueados,proc_bloqueado);
+		   insertar_ultimo(&lista_listos,proc_bloqueado);
+		   break;
+	   } 
+
+   } 
+
+
+} 
+
+
 int unlock(unsigned int mutexid){
 	int pos = get_id_proc(mutexid);
 	if(pos == -1){
@@ -546,6 +567,7 @@ int unlock(unsigned int mutexid){
 			//se libera mutex y desbloquea proceso
 			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 			p_proc_actual->num_mutex_abiertos--;
+			vectorMutex[mutexid]->id_proc_actual = -1; 
 			//se desbloquea el primer proceso bloqueado
 			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
 			return 1;
@@ -556,6 +578,7 @@ int unlock(unsigned int mutexid){
 		    // mutex no recursivo, se libera
 			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 			p_proc_actual->num_mutex_abiertos--;
+			vectorMutex[mutexid]->id_proc_actual = -1;
 			//se desbloquea el primer proceso bloqueado
 			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
 			return 1;
@@ -563,11 +586,47 @@ int unlock(unsigned int mutexid){
 	} 
 
 
+}
+
+static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
+    //función que desbloquea a todos los procesos bloqueados por un mutex
+
+	 for (int i = 0; i < MAX_PROC; i++){
+       if(mutex->proc_bloqueados[i] != NULL){
+		   BCP * proc_bloqueado;
+		   proc_bloqueado = mutex->proc_bloqueados[i]; 
+		   proc_bloqueado->estado = LISTO;
+		   eliminar_elem(&lista_bloqueados,proc_bloqueado);
+		   insertar_ultimo(&lista_listos,proc_bloqueado);
+	   } 
+
+   } 
 
 
 } 
-int cerrar_mutex(unsigned int mutexid){
 
+static void desbloqueo_lista_abrir_mutex(){
+   
+   // implementar mediante un vector la lista de bloqueados al abrir mutex;
+   //BCP primero = eliminar_primero(&lista_bloqueados_abrir_mutex);
+   
+
+} 
+
+
+
+
+int cerrar_mutex(unsigned int mutexid){
+	int pos = get_id_proc(mutexid);
+	if(pos == -1){
+		return -1; //el proceso no tiene ese mutex abierto
+	}
+	//se desbloquean todos los procesos asociados a ese mutex y se borra de la lista de mutex del sistema
+	p_proc_actual->vectorMutexAbiertos[mutexid] = NULL;
+	p_proc_actual->num_mutex_abiertos--; 
+	desbloqueo_cerrar_mutex(lista_bloqueados_mutex,vectorMutex[mutexid]);
+	vectorMutex[mutexid] = NULL; 
+	desbloqueo_lista_abrir_mutex();
 	
 } 
 
