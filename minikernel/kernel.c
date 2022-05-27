@@ -478,11 +478,11 @@ int crear_mutex(char *nombre, int tipo){
 		return -2; //el nombre del mutex es mayor que máximo
 	}  
 
-	if(num_actual_mutex + 1 >= NUM_MUT){
+	while(num_actual_mutex >= NUM_MUT){
         //el proceso se bloquea y se produce un cambio de contexto
        aux_mutex(&lista_bloqueados_abrir_mutex);
 
-		return -3; //se ha excedido el numero máximo de mutex en el sistema
+		//return -3; //se ha excedido el numero máximo de mutex en el sistema
 	} 
 
 	if(abrir_mutex(nombre) != -1){
@@ -607,10 +607,12 @@ static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
 
 static void desbloqueo_lista_abrir_mutex(){
    
-   // implementar mediante un vector la lista de bloqueados al abrir mutex;
-   //BCP primero = eliminar_primero(&lista_bloqueados_abrir_mutex);
-   
-
+   // desbloqueo  crear mutex
+   BCP * primero;
+   primero = lista_bloqueados_abrir_mutex.primero;
+   eliminar_elem(&lista_bloqueados_abrir_mutex,primero);
+   primero->estado = LISTO;
+   insertar_ultimo(&lista_listos,primero);
 } 
 
 
