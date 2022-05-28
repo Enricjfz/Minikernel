@@ -25,6 +25,8 @@ int num_int_anterior = 0; //entero que indica el numero de interrupciones en la 
 int num_int_usuario = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo usuario
 int num_int_sistema = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo sistema
 int num_actual_mutex = 0; //entero que indica el numero de mutex abiertos en el sistema
+int puntero_lectura = 0; //entero que indica la posición de lectura del buffer del terminal
+int puntero_escritura = 0; //entero que indica la posición de escritura del buffer del terminal
 
 /*
  *
@@ -200,6 +202,22 @@ static void exc_mem(){
         return; /* no deber�a llegar aqui */
 }
 
+/** Metodo de desbloqueo de procesos **/
+
+static void desbloqueo_proceso (lista_BCPs * lista){
+  
+  if(lista->primero != NULL){
+    //hay un proceso bloqueado, se procede a desbloquear
+	 BCP * proceso_bloqueado = lista->primero;
+	 eliminar_elem(&lista, proceso_bloqueado);
+	 proceso_bloqueado->estado = LISTO;
+	 insertar_ultimo(&lista_listos,proceso_bloqueado);
+
+  } 
+
+
+} 
+
 /*
  * Tratamiento de interrupciones de terminal
  */
@@ -208,9 +226,50 @@ static void int_terminal(){
 
 	car = leer_puerto(DIR_TERMINAL);
 	printk("-> TRATANDO INT. DE TERMINAL %c\n", car);
+	if(puntero_escritura < TAM_BUF_TERM){
+		//si hay espacio se introduce el caracter en el buffer
+       buffer_terminal[puntero_escritura] = car;
+	   puntero_escritura = (puntero_escritura + 1)% TAM_BUF_TERM; 
+
+
+
+	} 
+	//se libera a un proceso bloqueado en el terminal
+
+
 
         return;
 }
+
+static void desbloqueo_reloj(){
+    if(lista_dormidos.primero != NULL){
+      BCP * aux;
+
+	  aux = lista_dormidos.primero;
+	  while(aux != NULL)
+	 {
+       aux->interrupciones--;
+	   if(aux->interrupciones == 0)
+	  {
+		  //Hay un proceso que se puede desbloquear
+		  eliminar_elem(&lista_dormidos, aux);
+	      aux->estado = LISTO;
+	      insertar_ultimo(&lista_listos,aux);
+		  
+	  } 
+	  aux = aux->siguiente;
+	 }  
+  
+
+
+	} 
+	
+
+
+
+
+
+} 
 
 /*
  * Tratamiento de interrupciones de reloj
@@ -233,13 +292,7 @@ static void int_reloj(){
 
 	//concurrencia de listas --- evitar interrupciones cuando se manejan listas
 	// falta cambiar el nivel de interrupcion para evitar problemas de sincro
-	if(lista_dormidos.primero != NULL){
-       BCP * p_proc_dormido = lista_dormidos.primero;
-	   eliminar_elem(&lista_dormidos, p_proc_dormido);
-	   p_proc_dormido->dormido = 0;
-	   p_proc_dormido->estado = LISTO;
-	   insertar_ultimo(&lista_listos,p_proc_dormido);
-	} 
+    desbloqueo_reloj();
 
         return;
 }
@@ -299,7 +352,6 @@ static int crear_tarea(char *prog){
 			&(p_proc->contexto_regs));
 		p_proc->id=proc;
 		p_proc->estado=LISTO;
-		p_proc->dormido = 0;
 		p_proc->num_mutex_abiertos = 0;
 
 		/* lo inserta al final de cola de listos */
@@ -380,8 +432,8 @@ int obtener_id_pr(){
  */
 
 static void aux_dormir(unsigned int segundos, lista_BCPs * lista_dormidos){
-   p_proc_actual->dormido = 1;
    p_proc_actual->interrupciones = segundos * TICK;
+   eliminar_elem(&lista_listos,p_proc_actual);
    insertar_ultimo(lista_dormidos, p_proc_actual);
    p_proc_actual->estado = BLOQUEADO;
    BCP * p_proc_anterior = p_proc_actual;
@@ -432,7 +484,8 @@ int tiempos_proceso(struct tiempos_ejec *t_ejec){
 }
 
 
-static void aux_mutex(lista_BCPs * lista_bloqueados_mutex){
+static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
+   eliminar_elem(&lista_listos,p_proc_actual);
    insertar_ultimo(lista_bloqueados_mutex, p_proc_actual);
    p_proc_actual->estado = BLOQUEADO;
    BCP * p_proc_anterior = p_proc_actual;
@@ -480,7 +533,7 @@ int crear_mutex(char *nombre, int tipo){
 
 	while(num_actual_mutex >= NUM_MUT){
         //el proceso se bloquea y se produce un cambio de contexto
-       aux_mutex(&lista_bloqueados_abrir_mutex);
+       aux_bloqueo(&lista_bloqueados_abrir_mutex);
 
 		//return -3; //se ha excedido el numero máximo de mutex en el sistema
 	} 
@@ -510,7 +563,7 @@ int lock(unsigned int mutexid){
 		//se encuentra usado por un proceso distinto al actual
 		vectorMutex[mutexid]->proc_bloqueados[p_proc_actual->id] = p_proc_actual; 
 		//bloqueo del proceso y cambio de contexto 
-		aux_mutex(&lista_bloqueados_mutex);
+		aux_bloqueo(&lista_bloqueados_mutex);
 		return -1;
 	} 
 	else if(vectorMutex[mutexid]->id_proc_actual == p_proc_actual){
@@ -607,12 +660,15 @@ static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
 
 static void desbloqueo_lista_abrir_mutex(){
    
+   // se desbloquea si hay mutex bloqueado
+   if(lista_bloqueados_abrir_mutex.primero != NULL){ 
    // desbloqueo  crear mutex
    BCP * primero;
    primero = lista_bloqueados_abrir_mutex.primero;
    eliminar_elem(&lista_bloqueados_abrir_mutex,primero);
    primero->estado = LISTO;
    insertar_ultimo(&lista_listos,primero);
+   } 
 } 
 
 
@@ -630,6 +686,19 @@ int cerrar_mutex(unsigned int mutexid){
 	vectorMutex[mutexid] = NULL; 
 	desbloqueo_lista_abrir_mutex();
 	
+} 
+
+int leer_caracter(){
+    while(puntero_escritura == puntero_lectura){
+		//no hay caracteres en el buffer nuevos, se bloquea al proceso y se produce un cambio de contexto
+        aux_bloqueo(&lista_bloqueados_lectura_term);
+	} 
+	//se lee caracter
+	int c;
+	c = buffer_terminal[puntero_lectura];
+	puntero_lectura = (puntero_lectura + 1)%TAM_BUF_TERM;
+	desbloqueo_proceso(&lista_bloqueados_lectura_term);
+	return c; 
 } 
 
 

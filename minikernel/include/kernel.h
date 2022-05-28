@@ -57,7 +57,6 @@ typedef struct BCP_t {
         void * pila;			/* dir. inicial de la pila */
 	BCPptr siguiente;		/* puntero a otro BCP */
 	void *info_mem;			/* descriptor del mapa de memoria */
-	int dormido;            /* entero que indica si esta dormido 1 o no 0 */
 	int interrupciones;    /* entero que indica cuantas interrupciones quedan hasta que se active el evento */
 	struct Mutex_t * vectorMutexAbiertos[NUM_MUT_PROC]; /*vector de mutex abiertos por el proceso */
 	int num_mutex_abiertos; /*manejo vertor mutex*/
@@ -109,6 +108,9 @@ lista_BCPs lista_bloqueados_mutex = {NULL, NULL};
 
 lista_BCPs lista_bloqueados_abrir_mutex ={NULL, NULL}; 
 
+/** lista bloqueados lectura_terminal **/
+lista_BCPs lista_bloqueados_lectura_term ={NULL,NULL}; 
+
 
 
 /*
@@ -134,6 +136,10 @@ typedef struct tiempos_ejec {
 typedef struct{
 	int (*fservicio)();
 } servicio;
+
+/** Buffer de caracteres del terminal **/
+
+char buffer_terminal[TAM_BUF_TERM]; 
 
 
 /*
