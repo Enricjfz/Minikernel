@@ -228,8 +228,10 @@ static void int_terminal(){
 	printk("-> TRATANDO INT. DE TERMINAL %c\n", car);
 	if(puntero_escritura < TAM_BUF_TERM){
 		//si hay espacio se introduce el caracter en el buffer
+       int nivel_anterior = fijar_nivel_int(NIVEL_3);
        buffer_terminal[puntero_escritura] = car;
 	   puntero_escritura = (puntero_escritura + 1)% TAM_BUF_TERM; 
+	   fijar_nivel_int(nivel_anterior);
 
 
 
@@ -290,8 +292,7 @@ static void int_reloj(){
 
 	} 
 
-	//concurrencia de listas --- evitar interrupciones cuando se manejan listas
-	// falta cambiar el nivel de interrupcion para evitar problemas de sincro
+    //no hace falta cotrol de sincro ya que la interrupción de reloj es la de más alto nivel
     desbloqueo_reloj();
 
         return;
@@ -498,7 +499,7 @@ static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
 
 int abrir_mutex(char *nombre){
 
-	for (int i = 0; i <= num_actual_mutex; i++){
+	for (int i = 0; i <= NUM_MUT; i++){
 		if(strcmp(vectorMutex[i]->nombre,nombre)== 0){
 			return i; //se encuentra el mutex en el vector de mutex
 		} 
@@ -526,7 +527,7 @@ int crear_mutex(char *nombre, int tipo){
 	if(tipo != NO_RECURSIVO && tipo != RECURSIVO){
 		return -1; //no existe ese tipo de mutex
 	} 
-	int length = sizeof(nombre) / sizeof(char *);
+	int length = strlen(nombre);
 	if(length > MAX_NOM_MUT){
 		return -2; //el nombre del mutex es mayor que máximo
 	}  
@@ -547,7 +548,8 @@ int crear_mutex(char *nombre, int tipo){
 	newMutex.nombre = nombre;
 	newMutex.tipo = tipo;
 	newMutex.n_locks = 0;
-	int mutexid = id_vector_mutex(&vectorMutex,num_actual_mutex);
+	int mutexid = id_vector_mutex(&vectorMutex,NUM_MUT);
+	//posible inhibicion de interrupciones
 	vectorMutex[mutexid] = &newMutex; 
 	num_actual_mutex++;
     //mutex creado y guardado
@@ -608,6 +610,29 @@ static void desbloqueoProceso(lista_BCPs lista_bloqueados, Mutex  * mutex){
 
 } 
 
+//metood auxilar que devuelve la posición del mutex en la lista de mutex que tiene un proceso
+
+static int get_id_proc(int pos_vector_mutex){
+  
+  if(vectorMutex[pos_vector_mutex]->id_proc_actual != p_proc_actual->id){
+     //el proceso no tiene ese mutex
+	 return -1;
+  } 
+
+
+  for (int i = 0; i <= NUM_MUT_PROC; i++){
+		if(strcmp(p_proc_actual->vectorMutexAbiertos[i]->nombre ,vectorMutex[pos_vector_mutex]->nombre)== 0){
+			return i; //se encuentra el mutex en el vector de mutex
+		} 
+		
+	} 
+	return -1; //no se encuentra
+
+
+
+
+} 
+
 
 int unlock(unsigned int mutexid){
 	int pos = get_id_proc(mutexid);
@@ -620,7 +645,7 @@ int unlock(unsigned int mutexid){
 			//se libera mutex y desbloquea proceso
 			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 			p_proc_actual->num_mutex_abiertos--;
-			vectorMutex[mutexid]->id_proc_actual = -1; 
+			vectorMutex[mutexid]->id_proc_actual = -1; //no tiene asociado un proceso
 			//se desbloquea el primer proceso bloqueado
 			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
 			return 1;
@@ -631,7 +656,7 @@ int unlock(unsigned int mutexid){
 		    // mutex no recursivo, se libera
 			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 			p_proc_actual->num_mutex_abiertos--;
-			vectorMutex[mutexid]->id_proc_actual = -1;
+			vectorMutex[mutexid]->id_proc_actual = -1; //no tiene asociado un proceso
 			//se desbloquea el primer proceso bloqueado
 			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
 			return 1;
