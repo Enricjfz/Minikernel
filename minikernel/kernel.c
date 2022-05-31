@@ -130,10 +130,57 @@ static void espera_int(){
  * Funci�n de planificacion que implementa un algoritmo FIFO.
  */
 static BCP * planificador(){
-	while (lista_listos.primero==NULL)
+	while (lista_listos.primero==NULL){ 
 		espera_int();		/* No hay nada que hacer */
+
+	}
+	if(lista_listos.primero->id == 0){
+		//es el proceso nulo
+		lista_listos.primero->ticks_round_robin = -1;
+	}  		
+	else{
+		lista_listos.primero->ticks_round_robin = TICKS_POR_RODAJA;
+	} 
 	return lista_listos.primero;
 }
+
+/** función que desbloquea a todos los procesos bloqueados por un mutex  **/
+
+static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
+    
+
+	 for (int i = 0; i < MAX_PROC; i++){
+       if(mutex->proc_bloqueados[i] != NULL){
+		   BCP * proc_bloqueado;
+		   proc_bloqueado = mutex->proc_bloqueados[i]; 
+		   proc_bloqueado->estado = LISTO;
+		   eliminar_elem(&lista_bloqueados,proc_bloqueado);
+		   insertar_ultimo(&lista_listos,proc_bloqueado);
+	   } 
+
+   } 
+
+
+} 
+
+
+/** Funcion auxilar que elimina todos los mutex y por consiguiente a los procesos bloqueados, asociados al proceso a liberar **/
+
+static void liberar_mutex(){
+ 
+   for(int i = 0; i < NUM_MUT_PROC; i++){
+      if(p_proc_actual->vectorMutexAbiertos[i] != NULL){
+        p_proc_actual->vectorMutexAbiertos[i]->id_proc_actual = -1;
+		desbloqueo_cerrar_mutex(lista_bloqueados_mutex,p_proc_actual->vectorMutexAbiertos[i]);
+		p_proc_actual->vectorMutexAbiertos[i] = NULL; //no haria falta 
+
+	  } 
+
+
+   }  
+
+
+} 
 
 /*
  *
@@ -144,6 +191,7 @@ static BCP * planificador(){
 static void liberar_proceso(){
 	BCP * p_proc_anterior;
 
+	liberar_mutex();
 	liberar_imagen(p_proc_actual->info_mem); /* liberar mapa */
 
 	p_proc_actual->estado=TERMINADO;
@@ -228,7 +276,7 @@ static void int_terminal(){
 	printk("-> TRATANDO INT. DE TERMINAL %c\n", car);
 	if(puntero_escritura < TAM_BUF_TERM){
 		//si hay espacio se introduce el caracter en el buffer
-       int nivel_anterior = fijar_nivel_int(NIVEL_3);
+       int nivel_anterior = fijar_nivel_int(NIVEL_2);
        buffer_terminal[puntero_escritura] = car;
 	   puntero_escritura = (puntero_escritura + 1)% TAM_BUF_TERM; 
 	   fijar_nivel_int(nivel_anterior);
@@ -292,8 +340,16 @@ static void int_reloj(){
 
 	} 
 
-    //no hace falta cotrol de sincro ya que la interrupción de reloj es la de más alto nivel
+    //no hace falta control de sincro ya que la interrupción de reloj es la de más alto nivel
     desbloqueo_reloj();
+    if(p_proc_actual->id != 0)
+   {
+	  p_proc_actual->ticks_round_robin--; //se reduce la rodaja del proceso (siempre que no sea el proceso nulo)
+   } 	
+	if(p_proc_actual->ticks_round_robin == 0){
+       //se le ha acabado el tiempo al proceso, se programa una interrupcion software
+	   activar_int_SW();
+	} 
 
         return;
 }
@@ -314,11 +370,25 @@ static void tratar_llamsis(){
 }
 
 /*
- * Tratamiento de interrupciuones software
+ * Tratamiento de interrupciones software
  */
 static void int_sw(){
 
 	printk("-> TRATANDO INT. SW\n");
+	//se produce un cambio de contexto, se inserta al proceso anterior en la cola de procesos listos y se asigna una nueva rodaja
+	if(p_proc_actual->ticks_round_robin == 0){
+      //se comprueba que de verdad el proceso se le ha acabado la rodaja
+	  int anterior = fijar_nivel_int(NIVEL_3);
+	  eliminar_elem(&lista_listos,p_proc_actual);
+      insertar_ultimo(&lista_listos, p_proc_actual);
+	  fijar_nivel_int(anterior);
+      BCP * p_proc_anterior = p_proc_actual;
+      p_proc_actual = planificador();
+      cambio_contexto(&(p_proc_anterior->contexto_regs), &(p_proc_actual->contexto_regs));
+
+
+
+	} 
 
 	return;
 }
@@ -354,9 +424,11 @@ static int crear_tarea(char *prog){
 		p_proc->id=proc;
 		p_proc->estado=LISTO;
 		p_proc->num_mutex_abiertos = 0;
-
+        p_proc->ticks_round_robin = TICKS_POR_RODAJA;
 		/* lo inserta al final de cola de listos */
+		int anterior = fijar_nivel_int(NIVEL_3);
 		insertar_ultimo(&lista_listos, p_proc);
+		fijar_nivel_int(anterior);
 		error= 0;
 	}
 	else
@@ -434,11 +506,12 @@ int obtener_id_pr(){
 
 static void aux_dormir(unsigned int segundos, lista_BCPs * lista_dormidos){
    p_proc_actual->interrupciones = segundos * TICK;
+   int anterior = fijar_nivel_int(NIVEL_3);
    eliminar_elem(&lista_listos,p_proc_actual);
    insertar_ultimo(lista_dormidos, p_proc_actual);
    p_proc_actual->estado = BLOQUEADO;
+   fijar_nivel_int(anterior);
    BCP * p_proc_anterior = p_proc_actual;
-   // falta programar la interrupción
    p_proc_actual = planificador();
    cambio_contexto(&(p_proc_anterior->contexto_regs), &(p_proc_actual->contexto_regs));
 
@@ -486,9 +559,11 @@ int tiempos_proceso(struct tiempos_ejec *t_ejec){
 
 
 static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
+   int anterior = fijar_nivel_int(NIVEL_3);
    eliminar_elem(&lista_listos,p_proc_actual);
    insertar_ultimo(lista_bloqueados_mutex, p_proc_actual);
    p_proc_actual->estado = BLOQUEADO;
+   fijar_nivel_int(anterior);
    BCP * p_proc_anterior = p_proc_actual;
    // falta programar la interrupción
    p_proc_actual = planificador();
@@ -600,8 +675,10 @@ static void desbloqueoProceso(lista_BCPs lista_bloqueados, Mutex  * mutex){
 		   BCP * proc_bloqueado;
 		   proc_bloqueado = mutex->proc_bloqueados[i]; 
 		   proc_bloqueado->estado = LISTO;
+		   int anterior = fijar_nivel_int(NIVEL_3);
 		   eliminar_elem(&lista_bloqueados,proc_bloqueado);
 		   insertar_ultimo(&lista_listos,proc_bloqueado);
+		   fijar_nivel_int(anterior);
 		   break;
 	   } 
 
@@ -666,22 +743,6 @@ int unlock(unsigned int mutexid){
 
 }
 
-static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
-    //función que desbloquea a todos los procesos bloqueados por un mutex
-
-	 for (int i = 0; i < MAX_PROC; i++){
-       if(mutex->proc_bloqueados[i] != NULL){
-		   BCP * proc_bloqueado;
-		   proc_bloqueado = mutex->proc_bloqueados[i]; 
-		   proc_bloqueado->estado = LISTO;
-		   eliminar_elem(&lista_bloqueados,proc_bloqueado);
-		   insertar_ultimo(&lista_listos,proc_bloqueado);
-	   } 
-
-   } 
-
-
-} 
 
 static void desbloqueo_lista_abrir_mutex(){
    
@@ -690,9 +751,11 @@ static void desbloqueo_lista_abrir_mutex(){
    // desbloqueo  crear mutex
    BCP * primero;
    primero = lista_bloqueados_abrir_mutex.primero;
+   int anterior = fijar_nivel_int(NIVEL_3);
    eliminar_elem(&lista_bloqueados_abrir_mutex,primero);
    primero->estado = LISTO;
    insertar_ultimo(&lista_listos,primero);
+   fijar_nivel_int(anterior);
    } 
 } 
 
@@ -720,9 +783,11 @@ int leer_caracter(){
 	} 
 	//se lee caracter
 	int c;
+	int anterior = fijar_nivel_int(NIVEL_2);
 	c = buffer_terminal[puntero_lectura];
 	puntero_lectura = (puntero_lectura + 1)%TAM_BUF_TERM;
 	desbloqueo_proceso(&lista_bloqueados_lectura_term);
+	fijar_nivel_int(anterior);
 	return c; 
 } 
 
@@ -758,6 +823,7 @@ int main(){
 	
 	/* activa proceso inicial */
 	p_proc_actual=planificador();
+	//proceso inicial rodaja inf
 	cambio_contexto(NULL, &(p_proc_actual->contexto_regs));
 	panico("S.O. reactivado inesperadamente");
 	return 0;

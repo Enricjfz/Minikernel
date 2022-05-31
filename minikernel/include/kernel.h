@@ -60,6 +60,7 @@ typedef struct BCP_t {
 	int interrupciones;    /* entero que indica cuantas interrupciones quedan hasta que se active el evento */
 	struct Mutex_t * vectorMutexAbiertos[NUM_MUT_PROC]; /*vector de mutex abiertos por el proceso */
 	int num_mutex_abiertos; /*manejo vertor mutex*/
+    int ticks_round_robin;  /* rodaja para cada procesador */
 
 } BCP;
 
