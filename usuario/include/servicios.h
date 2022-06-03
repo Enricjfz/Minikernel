@@ -29,10 +29,7 @@
 *
 */
 
-typedef struct tiempos_ejec {
-    int usuario; //numero de interrupciones que ha recibido el proceso en modo usuario
-    int sistema; //numero de interrupciones que ha recibido el proceso en modo sistema
-};
+    
 
 /*Variables para mutex */
 
@@ -42,12 +39,26 @@ typedef struct tiempos_ejec {
 
 /* Funcion de biblioteca */
 int escribirf(const char *formato, ...);
+/* Struct tiempos eject **/
+struct tiempos_ejec {
+    int usuario; //numero de interrupciones que ha recibido el proceso en modo usuario
+    int sistema; //numero de interrupciones que ha recibido el proceso en modo sistema
+};
 
 /* Llamadas al sistema proporcionadas */
 int crear_proceso(char *prog);
 int terminar_proceso();
 int escribir(char *texto, unsigned int longi);
 int obtener_id_pr();
+int dormir(unsigned int segundos);
+int tiempos_proceso(struct tiempos_ejec *t_ejec);
+int crear_mutex(char *nombre, int tipo);
+int abrir_mutex(char *nombre);
+int lock(unsigned int mutexid);
+int unlock(unsigned int mutexid);
+int cerrar_mutex(unsigned int mutexid);
+int leer_caracter();
+
 
 #endif /* SERVICIOS_H */
 

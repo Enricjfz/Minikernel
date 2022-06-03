@@ -130,7 +130,7 @@ typedef struct tiempos_ejec {
 
 /*
  *
- * Definici�n del tipo que corresponde con una entrada en la tabla de
+ * Definicion del tipo que corresponde con una entrada en la tabla de
  * llamadas al sistema.
  *
  */
@@ -150,6 +150,14 @@ int sis_crear_proceso();
 int sis_terminar_proceso();
 int sis_escribir();
 int obtener_id_pr();
+int dormir();
+int tiempos_proceso();
+int crear_mutex();
+int abrir_mutex();
+int lock();
+int unlock();
+int cerrar_mutex();
+int leer_caracter();
 
 /*
  * Variable global que contiene las rutinas que realizan cada llamada
@@ -157,7 +165,15 @@ int obtener_id_pr();
 servicio tabla_servicios[NSERVICIOS]={	{sis_crear_proceso},
 					{sis_terminar_proceso},
 					{sis_escribir},
-				    {obtener_id_pr}};
+				    {obtener_id_pr},
+                    {dormir},
+                    {tiempos_proceso},
+                    {crear_mutex},
+                    {abrir_mutex},
+                    {lock},
+                    {unlock},
+                    {cerrar_mutex},
+                    {leer_caracter}};
 
 #endif /* _KERNEL_H */
 
