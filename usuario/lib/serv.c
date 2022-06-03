@@ -48,7 +48,7 @@ int obtener_id_pr(){
 } 
 
 int dormir(unsigned int segundos){
-   return llamsis(DORMIR_PROCESO,1,(long)segundos);
+   return llamsis(DORMIR,1,(long) segundos);
 } 
 
 int tiempos_proceso(struct tiempos_ejec *t_ejec){

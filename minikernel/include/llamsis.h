@@ -25,7 +25,7 @@
 #define TERMINAR_PROCESO 1
 #define ESCRIBIR 2                                             
 #define OBTENER_ID_PR 3
-#define DORMIR_PROCESO 4
+#define DORMIR 4
 #define TIEMPOS_PROCESO 5
 #define CREAR_MUTEX 6
 #define ABRIR_MUTEX 7

@@ -149,15 +149,15 @@ char buffer_terminal[TAM_BUF_TERM];
 int sis_crear_proceso();
 int sis_terminar_proceso();
 int sis_escribir();
-int obtener_id_pr();
-int dormir();
-int tiempos_proceso();
-int crear_mutex();
-int abrir_mutex();
-int lock();
-int unlock();
-int cerrar_mutex();
-int leer_caracter();
+int sis_obtener_id_pr();
+int sis_dormir();
+int sis_tiempos_proceso();
+int sis_crear_mutex();
+int sis_abrir_mutex();
+int sis_lock();
+int sis_unlock();
+int sis_cerrar_mutex();
+int sis_leer_caracter();
 
 /*
  * Variable global que contiene las rutinas que realizan cada llamada
@@ -165,15 +165,15 @@ int leer_caracter();
 servicio tabla_servicios[NSERVICIOS]={	{sis_crear_proceso},
 					{sis_terminar_proceso},
 					{sis_escribir},
-				    {obtener_id_pr},
-                    {dormir},
-                    {tiempos_proceso},
-                    {crear_mutex},
-                    {abrir_mutex},
-                    {lock},
-                    {unlock},
-                    {cerrar_mutex},
-                    {leer_caracter}};
+				    {sis_obtener_id_pr},
+                    {sis_dormir},
+                    {sis_tiempos_proceso},
+                    {sis_crear_mutex},
+                    {sis_abrir_mutex},
+                    {sis_lock},
+                    {sis_unlock},
+                    {sis_cerrar_mutex},
+                    {sis_leer_caracter}};
 
 #endif /* _KERNEL_H */
 

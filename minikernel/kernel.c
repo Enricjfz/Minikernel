@@ -119,6 +119,7 @@ static void espera_int(){
 	int nivel;
 
 	printk("-> NO HAY LISTOS. ESPERA INT\n");
+	
 
 	/* Baja al m�nimo el nivel de interrupci�n mientras espera */
 	nivel=fijar_nivel_int(NIVEL_1);
@@ -134,13 +135,8 @@ static BCP * planificador(){
 		espera_int();		/* No hay nada que hacer */
 
 	}
-	if(lista_listos.primero->id == 0){
-		//es el proceso nulo
-		lista_listos.primero->ticks_round_robin = -1;
-	}  		
-	else{
-		lista_listos.primero->ticks_round_robin = TICKS_POR_RODAJA;
-	} 
+	lista_listos.primero->ticks_round_robin = TICKS_POR_RODAJA;
+
 	return lista_listos.primero;
 }
 
@@ -240,10 +236,15 @@ static void exc_arit(){
  */
 static void exc_mem(){
 
-	if (!viene_de_modo_usuario())
+	if (!viene_de_modo_usuario()){ 
+	    if(acc_t_ejec == 1){
+           liberar_proceso(); //se aborta proceso
+		} 
+		else{ 
 		panico("excepcion de memoria cuando estaba dentro del kernel");
 
-
+		}	
+	} 
 	printk("-> EXCEPCION DE MEMORIA EN PROC %d\n", p_proc_actual->id);
 	liberar_proceso();
 
@@ -342,7 +343,7 @@ static void int_reloj(){
 
     //no hace falta control de sincro ya que la interrupción de reloj es la de más alto nivel
     desbloqueo_reloj();
-    if(p_proc_actual->id != 0)
+    if(lista_listos.primero != NULL)
    {
 	  p_proc_actual->ticks_round_robin--; //se reduce la rodaja del proceso (siempre que no sea el proceso nulo)
    } 	
@@ -487,6 +488,9 @@ int sis_terminar_proceso(){
         return 0; /* no deber�a llegar aqui */
 }
 
+//resto de llamadas al sistema al final del fichero (antes del main)
+
+
 /*
 * Devuelve el identificador del proceso actual
 *
@@ -504,12 +508,11 @@ int obtener_id_pr(){
  *
  */
 
-static void aux_dormir(unsigned int segundos, lista_BCPs * lista_dormidos){
-   p_proc_actual->interrupciones = segundos * TICK;
+static void aux_dormir(lista_BCPs * lista_dormidos){
    int anterior = fijar_nivel_int(NIVEL_3);
    eliminar_elem(&lista_listos,p_proc_actual);
-   insertar_ultimo(lista_dormidos, p_proc_actual);
    p_proc_actual->estado = BLOQUEADO;
+   insertar_ultimo(lista_dormidos, p_proc_actual);
    fijar_nivel_int(anterior);
    BCP * p_proc_anterior = p_proc_actual;
    p_proc_actual = planificador();
@@ -525,9 +528,14 @@ static void aux_dormir(unsigned int segundos, lista_BCPs * lista_dormidos){
 */
 
 int dormir(unsigned int segundos){
-   aux_dormir(segundos, &lista_dormidos);
+   if(segundos == 0){
+     printk("SLEEP 0 SEGUNDOS\n");
+   } else{
+     p_proc_actual->interrupciones = segundos * TICK;
+     aux_dormir(&lista_dormidos);
+    
+   }
    return 1;
-
 }
 
 int tiempos_proceso(struct tiempos_ejec *t_ejec){
@@ -788,6 +796,104 @@ int leer_caracter() {
 	desbloqueo_proceso(&lista_bloqueados_lectura_term);
 	fijar_nivel_int(anterior);
 	return c; 
+} 
+
+/*
+ * Tratamiento de llamada al sistema obtener_id_pr
+ * 
+ */
+
+int sis_obtener_id_pr(){
+    
+	return obtener_id_pr();
+
+} 
+
+
+/*
+ * Tratamiento de llamada al sistema dormir, recibe los segundos.
+ */
+int sis_dormir(){
+    unsigned int segundos;
+	segundos = (unsigned int) leer_registro(1);
+	return dormir(segundos);
+
+} 
+
+/*
+ * Tratamiento de llamada al sistema tiempos_proceso, puede o no recibir el struct tiempos_ejec
+ */
+int sis_tiempos_proceso(){
+    
+	struct tiempos_ejec *t_ejec;
+	t_ejec = (struct tiempos_ejec *) leer_registro(1);
+	return tiempos_proceso(t_ejec);
+
+} 
+
+/*
+ * Tratamiento de llamada al sistema crear_mutex.
+ * 
+ */
+int sis_crear_mutex (){
+   char * nombre;
+   int tipo;
+   nombre = (char *)leer_registro(1);
+   tipo = (int)leer_registro(2);
+   return crear_mutex(nombre,tipo);
+
+
+
+} 
+
+/*
+ * Tratamiento de llamada al sistema abrir_mutex
+ * 
+ */
+int sis_abrir_mutex (){
+   char * nombre;
+   nombre = (char *)leer_registro(1);
+   return abrir_mutex(nombre);	
+} 
+
+/*
+ * Tratamiento de llamada al sistema lock
+ * 
+ */
+int sis_lock (){
+   unsigned int mutexid;
+   mutexid = (unsigned int) leer_registro(1);
+   return lock(mutexid);	
+} 
+
+/*
+ * Tratamiento de llamada al sistema unlock
+ * 
+ */
+int sis_unlock (){
+   unsigned int mutexid;
+   mutexid = (unsigned int) leer_registro(1);
+   return unlock(mutexid);	
+	
+} 
+
+/*
+ * Tratamiento de llamada al sistema cerrar_mutex
+ * 
+ */
+int sis_cerrar_mutex (){
+   unsigned int mutexid;
+   mutexid = (unsigned int) leer_registro(1);
+   return cerrar_mutex(mutexid);	
+}
+
+/*
+ * Tratamiento de llamada al sistema leer_caracter
+ * 
+ */
+int sis_leer_caracter (){
+    return leer_caracter();
+
 } 
 
 
