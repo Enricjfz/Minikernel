@@ -28,7 +28,7 @@
 /** Definición de la estructura Mutex, que almacena la información asociada a un Mutex **/
 
 typedef struct Mutex_t {
-   char * nombre;  //nombre del struct
+   char nombre [MAX_NOM_MUT];  //nombre del struct
    int tipo;   //tipo del struct 0/1
    int id_proc_actual;  //id del proceso que tiene el struct
    struct BCP_t * proc_bloqueados[MAX_PROC]; //procesos solicitantes del struct

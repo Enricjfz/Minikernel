@@ -571,9 +571,14 @@ static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
 
 int abrir_mutex(char *nombre){
     printk("Nombre: %s\n", nombre);
-	for (int i = 0; i < NUM_MUT; i++){
+	int i;
+	for (i = 0; i < NUM_MUT; i++){
 		printk("Iter: %d\n",i);
+		if(vectorMutex[i] != NULL){
+			printk("NOMBRE MUTEX: %s\n",vectorMutex[i]->nombre);
+		} 
 		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
+			printk("Se encuentra mutex\n");
 			return i; //se encuentra el mutex en el vector de mutex
 		} 
 		
@@ -621,7 +626,7 @@ int crear_mutex(char *nombre, int tipo){
     printk("Llega 5 \n");
 	Mutex newMutex;
 	newMutex.id_proc_actual = -1; // no hay proceso asociado al mutex
-	newMutex.nombre = nombre; //posible strcpy
+	strcpy(newMutex.nombre,nombre);
 	newMutex.tipo = tipo;
 	newMutex.n_locks = 0;
 	int mutexid = id_vector_mutex(vectorMutex,NUM_MUT);
