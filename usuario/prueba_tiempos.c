@@ -1,9 +1,9 @@
 /*
  * usuario/prueba_tiempos.c
  *
- *  Minikernel. Versión 1.0
+ *  Minikernel. Versiï¿½n 1.0
  *
- *  Fernando Pérez Costoya
+ *  Fernando Pï¿½rez Costoya
  *
  */
 
@@ -46,6 +46,7 @@ int main(){
 
 	printf("FIN SEGUNDA FASE\n");
 	t2=tiempos_proceso(&tiempos_f2);
+	printf("Ticks t2, Usuario: %d Sistema: %d\n",tiempos_f2.usuario, tiempos_f2.sistema);
 	imp_tiempos(t2-t1, tiempos_f2.usuario-tiempos_f1.usuario,
 		tiempos_f2.sistema-tiempos_f1.sistema);
 
@@ -62,7 +63,7 @@ int main(){
 
 	printf("PASANDO ARGUMENTO ERRONEO\n");
 
-	/* Debe sobrevivir después de abortar el proceso */ 
+	/* Debe sobrevivir despuï¿½s de abortar el proceso */ 
 	if (crear_proceso("simplon")<0)
 		printf("Error creando simplon\n");
 

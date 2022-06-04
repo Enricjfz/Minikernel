@@ -21,7 +21,6 @@
 
 int acc_t_ejec = 0; //flag que indica si el proceso esta accediendo a la estructura tiempos_ejec
 int num_int_total = 0; //entero que indica el numero de interrupciones totales en el sistema
-int num_int_anterior = 0; //entero que indica el numero de interrupciones en la llamada de tiempos_proc
 int num_int_usuario = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo usuario
 int num_int_sistema = 0; //entero que indica el numero de interrupciones en las que el proceso estaba en modo sistema
 int num_actual_mutex = 0; //entero que indica el numero de mutex abiertos en el sistema
@@ -332,11 +331,11 @@ static void int_reloj(){
 
     num_int_total++;	
 
-	if(viene_de_modo_usuario()){
+	if(viene_de_modo_usuario() && lista_listos.primero != NULL){
       num_int_usuario++;
 
 	} 
-	else{
+	if(!viene_de_modo_usuario() && lista_listos.primero != NULL){ 
      num_int_sistema++;
 
 	} 
@@ -539,6 +538,7 @@ int dormir(unsigned int segundos){
 }
 
 int tiempos_proceso(struct tiempos_ejec *t_ejec){
+	printk("LLEGA a tiempos proceso\n");
    if(t_ejec != NULL)
   {
 	  acc_t_ejec = 1;
@@ -549,18 +549,7 @@ int tiempos_proceso(struct tiempos_ejec *t_ejec){
 	  acc_t_ejec = 0;
 
   } 
-  if(num_int_anterior == 0)
- {
-	 //primera llamada
-	 num_int_anterior = num_int_total;
- } 
- else{
-	 //llamadas sucesivas 
-
-	 num_int_anterior = num_int_total - num_int_anterior;
- } 
-
- return num_int_anterior/TICK;
+ return num_int_total;
 	 
 
 }
@@ -581,9 +570,10 @@ static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
 
 
 int abrir_mutex(char *nombre){
-
-	for (int i = 0; i <= NUM_MUT; i++){
-		if(strcmp(vectorMutex[i]->nombre,nombre)== 0){
+    printk("Nombre: %s\n", nombre);
+	for (int i = 0; i < NUM_MUT; i++){
+		printk("Iter: %d\n",i);
+		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
 			return i; //se encuentra el mutex en el vector de mutex
 		} 
 		
@@ -607,34 +597,38 @@ static int id_vector_mutex(struct Mutex_t *vector[],int length){
 } 
 
 int crear_mutex(char *nombre, int tipo){
+	printk("Nombre: %s\n", nombre);
+	printk("Llega 1 \n");
 	if(tipo != NO_RECURSIVO && tipo != RECURSIVO){
 		return -1; //no existe ese tipo de mutex
 	} 
 	int length = strlen(nombre);
+	printk("Llega 2 \n");
 	if(length > MAX_NOM_MUT){
 		return -2; //el nombre del mutex es mayor que máximo
 	}  
-
+    printk("Llega 3 \n");
 	while(num_actual_mutex >= NUM_MUT){
         //el proceso se bloquea y se produce un cambio de contexto
        aux_bloqueo(&lista_bloqueados_abrir_mutex);
 
 		//return -3; //se ha excedido el numero máximo de mutex en el sistema
 	} 
-
+    printk("Llega 4 \n");
 	if(abrir_mutex(nombre) != -1){
 		return -4; //existe un mutex con ese nombre
 	} 
-    
+    printk("Llega 5 \n");
 	Mutex newMutex;
 	newMutex.id_proc_actual = -1; // no hay proceso asociado al mutex
-	newMutex.nombre = nombre;
+	newMutex.nombre = nombre; //posible strcpy
 	newMutex.tipo = tipo;
 	newMutex.n_locks = 0;
 	int mutexid = id_vector_mutex(vectorMutex,NUM_MUT);
 	//posible inhibicion de interrupciones
 	vectorMutex[mutexid] = &newMutex; 
 	num_actual_mutex++;
+	printk("Llega 6 \n");
     //mutex creado y guardado
 	return num_actual_mutex;
 
@@ -777,6 +771,7 @@ int cerrar_mutex(unsigned int mutexid){
 	//se desbloquean todos los procesos asociados a ese mutex y se borra de la lista de mutex del sistema
 	p_proc_actual->vectorMutexAbiertos[mutexid] = NULL;
 	p_proc_actual->num_mutex_abiertos--; 
+	num_actual_mutex--;
 	desbloqueo_cerrar_mutex(lista_bloqueados_mutex,vectorMutex[mutexid]);
 	vectorMutex[mutexid] = NULL; 
 	desbloqueo_lista_abrir_mutex();
@@ -826,6 +821,7 @@ int sis_dormir(){
 int sis_tiempos_proceso(){
     
 	struct tiempos_ejec *t_ejec;
+	printk("LLEGA a sys tiempos proceso\n");
 	t_ejec = (struct tiempos_ejec *) leer_registro(1);
 	return tiempos_proceso(t_ejec);
 
