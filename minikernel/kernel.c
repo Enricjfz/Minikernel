@@ -26,6 +26,7 @@ int num_int_sistema = 0; //entero que indica el numero de interrupciones en las 
 int num_actual_mutex = 0; //entero que indica el numero de mutex abiertos en el sistema
 int puntero_lectura = 0; //entero que indica la posición de lectura del buffer del terminal
 int puntero_escritura = 0; //entero que indica la posición de escritura del buffer del terminal
+int datos_buffer = 0; //entero que indica cuantos buffer hay en el buffer
 
 /*
  *
@@ -149,8 +150,10 @@ static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
 		   BCP * proc_bloqueado;
 		   proc_bloqueado = mutex->proc_bloqueados[i]; 
 		   proc_bloqueado->estado = LISTO;
+		   int anterior = fijar_nivel_int(NIVEL_3);
 		   eliminar_elem(&lista_bloqueados,proc_bloqueado);
 		   insertar_ultimo(&lista_listos,proc_bloqueado);
+		   fijar_nivel_int(anterior);
 	   } 
 
    } 
@@ -256,10 +259,12 @@ static void desbloqueo_proceso (lista_BCPs * lista){
   
   if(lista->primero != NULL){
     //hay un proceso bloqueado, se procede a desbloquear
+	int anterior = fijar_nivel_int(NIVEL_3);
 	 BCP * proceso_bloqueado = lista->primero;
 	 eliminar_elem(lista, proceso_bloqueado);
 	 proceso_bloqueado->estado = LISTO;
 	 insertar_ultimo(&lista_listos,proceso_bloqueado);
+	 fijar_nivel_int(anterior);
 
   } 
 
@@ -274,10 +279,11 @@ static void int_terminal(){
 
 	car = leer_puerto(DIR_TERMINAL);
 	printk("-> TRATANDO INT. DE TERMINAL %c\n", car);
-	if(puntero_escritura < TAM_BUF_TERM){
+	if(datos_buffer < TAM_BUF_TERM){
 		//si hay espacio se introduce el caracter en el buffer
        int nivel_anterior = fijar_nivel_int(NIVEL_2);
        buffer_terminal[puntero_escritura] = car;
+	   datos_buffer++;
 	   puntero_escritura = (puntero_escritura + 1)% TAM_BUF_TERM; 
 	   fijar_nivel_int(nivel_anterior);
 
@@ -285,7 +291,7 @@ static void int_terminal(){
 
 	} 
 	//se libera a un proceso bloqueado en el terminal
-
+    desbloqueo_proceso(&lista_bloqueados_lectura_term);
 
 
         return;
@@ -327,7 +333,7 @@ static void desbloqueo_reloj(){
 static void int_reloj(){
 
 	printk("-> TRATANDO INT. DE RELOJ\n");
-	
+	printk("INTERRUPCIONES RESTANTES: %d\n",p_proc_actual->interrupciones);
 
     num_int_total++;	
 
@@ -462,6 +468,7 @@ int sis_crear_proceso(){
  * Tratamiento de llamada al sistema escribir. Llama simplemente a la
  * funcion de apoyo escribir_ker
  */
+
 int sis_escribir()
 {
 	char *texto;
@@ -531,6 +538,7 @@ int dormir(unsigned int segundos){
      printk("SLEEP 0 SEGUNDOS\n");
    } else{
      p_proc_actual->interrupciones = segundos * TICK;
+	 printk ("SEGUNDOS: %d INTERRUPCIONES INICIALES: %d\n",segundos,p_proc_actual->interrupciones);
      aux_dormir(&lista_dormidos);
     
    }
@@ -631,8 +639,10 @@ int crear_mutex(char *nombre, int tipo){
 	newMutex.n_locks = 0;
 	int mutexid = id_vector_mutex(vectorMutex,NUM_MUT);
 	//posible inhibicion de interrupciones
+	int anterior = fijar_nivel_int(NIVEL_3);
 	vectorMutex[mutexid] = &newMutex; 
 	num_actual_mutex++;
+	fijar_nivel_int(anterior);
 	printk("Llega 6 \n");
     //mutex creado y guardado
 	return num_actual_mutex;
@@ -645,7 +655,9 @@ int crear_mutex(char *nombre, int tipo){
 int lock(unsigned int mutexid){
 	if(vectorMutex[mutexid]->id_proc_actual != -1 && vectorMutex[mutexid]->id_proc_actual != p_proc_actual->id){
 		//se encuentra usado por un proceso distinto al actual
+		int anterior = fijar_nivel_int(NIVEL_3);
 		vectorMutex[mutexid]->proc_bloqueados[p_proc_actual->id] = p_proc_actual; 
+		fijar_nivel_int(anterior);
 		//bloqueo del proceso y cambio de contexto 
 		aux_bloqueo(&lista_bloqueados_mutex);
 		return -1;
@@ -653,7 +665,9 @@ int lock(unsigned int mutexid){
 	else if(vectorMutex[mutexid]->id_proc_actual == p_proc_actual->id){
 		//se hace lock a un mutex que tiene el proceso
         if(vectorMutex[mutexid]->tipo == RECURSIVO){
+			int anterior = fijar_nivel_int(NIVEL_3);
 			vectorMutex[mutexid]->n_locks++; //mutex recursivo
+			fijar_nivel_int(anterior);
 			
 		} 
 		else{
@@ -662,7 +676,9 @@ int lock(unsigned int mutexid){
 	} 
 	else{
        //el mutex esta libre
+	   int anterior = fijar_nivel_int(NIVEL_3);
 	   vectorMutex[mutexid]->id_proc_actual = p_proc_actual->id;
+	   fijar_nivel_int(anterior);
 	   int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,p_proc_actual->num_mutex_abiertos);
 	   p_proc_actual->vectorMutexAbiertos[pos] = vectorMutex[mutexid]; 
 	   p_proc_actual->num_mutex_abiertos++; 
@@ -705,7 +721,7 @@ static int get_id_proc(int pos_vector_mutex){
 
 
   for (int i = 0; i <= NUM_MUT_PROC; i++){
-		if(strcmp(p_proc_actual->vectorMutexAbiertos[i]->nombre ,vectorMutex[pos_vector_mutex]->nombre)== 0){
+		if(p_proc_actual->vectorMutexAbiertos[i] != NULL && strcmp(p_proc_actual->vectorMutexAbiertos[i]->nombre ,vectorMutex[pos_vector_mutex]->nombre)== 0){
 			return i; //se encuentra el mutex en el vector de mutex
 		} 
 		
@@ -729,7 +745,9 @@ int unlock(unsigned int mutexid){
 			//se libera mutex y desbloquea proceso
 			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 			p_proc_actual->num_mutex_abiertos--;
+			int anterior = fijar_nivel_int(NIVEL_3);
 			vectorMutex[mutexid]->id_proc_actual = -1; //no tiene asociado un proceso
+			fijar_nivel_int(anterior);
 			//se desbloquea el primer proceso bloqueado
 			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
 			return 1;
@@ -739,7 +757,9 @@ int unlock(unsigned int mutexid){
 		    // mutex no recursivo, se libera
 			p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 			p_proc_actual->num_mutex_abiertos--;
+			int anterior = fijar_nivel_int(NIVEL_3);
 			vectorMutex[mutexid]->id_proc_actual = -1; //no tiene asociado un proceso
+			fijar_nivel_int(anterior);
 			//se desbloquea el primer proceso bloqueado
 			desbloqueoProceso(lista_bloqueados_mutex,vectorMutex[mutexid]);
 			return 1;
@@ -776,15 +796,17 @@ int cerrar_mutex(unsigned int mutexid){
 	//se desbloquean todos los procesos asociados a ese mutex y se borra de la lista de mutex del sistema
 	p_proc_actual->vectorMutexAbiertos[mutexid] = NULL;
 	p_proc_actual->num_mutex_abiertos--; 
-	num_actual_mutex--;
 	desbloqueo_cerrar_mutex(lista_bloqueados_mutex,vectorMutex[mutexid]);
+	int anterior = fijar_nivel_int(NIVEL_3);
+	num_actual_mutex--;
 	vectorMutex[mutexid] = NULL; 
+	fijar_nivel_int(anterior);
 	desbloqueo_lista_abrir_mutex();
 	
 } 
 
 int leer_caracter() {
-    while(puntero_escritura == puntero_lectura){
+    while(datos_buffer == 0){
 		//no hay caracteres en el buffer nuevos, se bloquea al proceso y se produce un cambio de contexto
         aux_bloqueo(&lista_bloqueados_lectura_term);
 	} 
@@ -792,8 +814,9 @@ int leer_caracter() {
 	int c;
 	int anterior = fijar_nivel_int(NIVEL_2);
 	c = buffer_terminal[puntero_lectura];
+	datos_buffer--;
 	puntero_lectura = (puntero_lectura + 1)%TAM_BUF_TERM;
-	desbloqueo_proceso(&lista_bloqueados_lectura_term);
+	//desbloqueo_proceso(&lista_bloqueados_lectura_term);
 	fijar_nivel_int(anterior);
 	return c; 
 } 
