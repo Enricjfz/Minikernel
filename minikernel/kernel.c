@@ -15,6 +15,7 @@
 
 #include "kernel.h"	/* Contiene defs. usadas por este modulo */
 #include <string.h>
+#include <stdlib.h>
 
 
 
@@ -44,6 +45,15 @@ static void iniciar_tabla_proc(){
 	for (i=0; i<MAX_PROC; i++)
 		tabla_procs[i].estado=NO_USADA;
 }
+
+// Función que inicializa el vector de struct
+static void iniciar_vector_struct (){
+   int i;
+   for (i = 0; i < NUM_MUT; i++){
+	   vectorMutex[i] = malloc(sizeof(Mutex));
+   } 
+
+} 
 
 /*
  * Funci�n que busca una entrada libre en la tabla de procesos
@@ -576,26 +586,6 @@ static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
 
 }
 
-
-int abrir_mutex(char *nombre){
-    printk("Nombre: %s\n", nombre);
-	int i;
-	for (i = 0; i < NUM_MUT; i++){
-		printk("Iter: %d\n",i);
-		if(vectorMutex[i] != NULL){
-			printk("NOMBRE MUTEX: %s\n",vectorMutex[i]->nombre);
-		} 
-		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
-			printk("Se encuentra mutex\n");
-			return i; //se encuentra el mutex en el vector de mutex
-		} 
-		
-	} 
-	return -1; //no se encuentra
-
-
-} 
-
 static int id_vector_mutex(struct Mutex_t *vector[],int length){
 	int sol = 0;
 	for (int i = 0; i < length; i++){
@@ -609,38 +599,77 @@ static int id_vector_mutex(struct Mutex_t *vector[],int length){
 
 } 
 
+int abrir_mutex(char *nombre){
+    printk("Nombre: %s\n", nombre);
+	int i;
+	for (i = 0; i < NUM_MUT; i++){
+		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
+			printk("Se encuentra mutex\n");
+			int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,p_proc_actual->num_mutex_abiertos);
+			p_proc_actual->vectorMutexAbiertos[pos] = vectorMutex[i]; 
+	        p_proc_actual->num_mutex_abiertos++; 
+			//Se ha guardado el mutex
+			return i; //se encuentra el mutex en el vector de mutex
+		} 
+		
+	} 
+	return -1; //no se encuentra
+
+
+} 
+
+static int buscar_indice(char *nombre){
+    int i;
+	for (i = 0; i < NUM_MUT; i++){
+		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
+			printk("Se encuentra mutex en la pos %d\n",i);
+			return i; //se encuentra el mutex en el vector de mutex
+		} 
+		
+	} 
+	printk("No se encuentra mutex");
+	return -1; //no se encuentra
+} 
+
+ 
+
+
 int crear_mutex(char *nombre, int tipo){
 	printk("Nombre: %s\n", nombre);
 	printk("Llega 1 \n");
 	if(tipo != NO_RECURSIVO && tipo != RECURSIVO){
+		printk("->SE HA INTRODUCIDO UN TIPO QUE NO EXISTE\n");
 		return -1; //no existe ese tipo de mutex
 	} 
 	int length = strlen(nombre);
 	printk("Llega 2 \n");
 	if(length > MAX_NOM_MUT){
+	    printk("->SE HA SUPERADO EL TAMANO MAXIMO DE DESCRIPTORES\n");
 		return -2; //el nombre del mutex es mayor que máximo
 	}  
     printk("Llega 3 \n");
 	while(num_actual_mutex >= NUM_MUT){
         //el proceso se bloquea y se produce un cambio de contexto
+	   printk("->SE HA SUPERADO EL NUMERO MAXIMO DE DESCRIPTORES\n");
        aux_bloqueo(&lista_bloqueados_abrir_mutex);
 
 		//return -3; //se ha excedido el numero máximo de mutex en el sistema
 	} 
     printk("Llega 4 \n");
-	if(abrir_mutex(nombre) != -1){
+	if(buscar_indice(nombre) != -1){
 		return -4; //existe un mutex con ese nombre
 	} 
     printk("Llega 5 \n");
-	Mutex newMutex;
-	newMutex.id_proc_actual = -1; // no hay proceso asociado al mutex
-	strcpy(newMutex.nombre,nombre);
-	newMutex.tipo = tipo;
-	newMutex.n_locks = 0;
+	Mutex * newMutex;
+	newMutex = malloc(sizeof(Mutex));
+	newMutex->id_proc_actual = -1; // no hay proceso asociado al mutex
+	strcpy(newMutex->nombre,nombre);
+	newMutex->tipo = tipo;
+	newMutex->n_locks = 0;
 	int mutexid = id_vector_mutex(vectorMutex,NUM_MUT);
 	//posible inhibicion de interrupciones
 	int anterior = fijar_nivel_int(NIVEL_3);
-	vectorMutex[mutexid] = &newMutex; 
+	vectorMutex[mutexid] = newMutex; 
 	num_actual_mutex++;
 	fijar_nivel_int(anterior);
 	printk("Llega 6 \n");
@@ -679,9 +708,6 @@ int lock(unsigned int mutexid){
 	   int anterior = fijar_nivel_int(NIVEL_3);
 	   vectorMutex[mutexid]->id_proc_actual = p_proc_actual->id;
 	   fijar_nivel_int(anterior);
-	   int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,p_proc_actual->num_mutex_abiertos);
-	   p_proc_actual->vectorMutexAbiertos[pos] = vectorMutex[mutexid]; 
-	   p_proc_actual->num_mutex_abiertos++; 
 	   
 	} 
 
@@ -945,6 +971,8 @@ int main(){
 	iniciar_cont_teclado();		/* inici cont. teclado */
 
 	iniciar_tabla_proc();		/* inicia BCPs de tabla de procesos */
+    //iniciar_vector_struct (); // Inicializa el vector de struct
+    
 
 	/* crea proceso inicial */
 	if (crear_tarea((void *)"init")<0)
