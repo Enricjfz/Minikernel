@@ -46,15 +46,7 @@ static void iniciar_tabla_proc(){
 		tabla_procs[i].estado=NO_USADA;
 }
 
-// Función que inicializa el vector de struct
-static void iniciar_vector_struct (){
-   int i;
-   for (i = 0; i < NUM_MUT; i++){
-	   vectorMutex[i] = malloc(sizeof(Mutex));
-   } 
-
-} 
-
+ 
 /*
  * Funci�n que busca una entrada libre en la tabla de procesos
  */
@@ -150,6 +142,36 @@ static BCP * planificador(){
 	return lista_listos.primero;
 }
 
+//metodo auxiliar que desbloquea un proceso que esta bloqueado esperando abrir un mutex
+static void desbloqueo_lista_abrir_mutex(){
+   
+   // se desbloquea si hay mutex bloqueado
+   if(lista_bloqueados_abrir_mutex.primero != NULL){ 
+   // desbloqueo  crear mutex
+   BCP * primero;
+   primero = lista_bloqueados_abrir_mutex.primero;
+   int anterior = fijar_nivel_int(NIVEL_3);
+   eliminar_elem(&lista_bloqueados_abrir_mutex,primero);
+   primero->estado = LISTO;
+   insertar_ultimo(&lista_listos,primero);
+   fijar_nivel_int(anterior);
+   } 
+} 
+
+//Funcion auxiliar que devuelve la posicion del mutex dado su nombre en la lista de mutex creados o negativos si no existe
+static int buscar_indice(char *nombre){
+    int i;
+	for (i = 0; i < NUM_MUT; i++){
+		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
+			printk("->Se encuentra mutex en la pos %d\n",i);
+			return i; //se encuentra el mutex en el vector de mutex
+		} 
+		
+	} 
+	printk("->No se encuentra mutex\n");
+	return -1; //no se encuentra
+} 
+
 /** función que desbloquea a todos los procesos bloqueados por un mutex  **/
 
 static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
@@ -173,15 +195,39 @@ static void desbloqueo_cerrar_mutex(lista_BCPs lista_bloqueados, Mutex * mutex){
 
 
 /** Funcion auxilar que elimina todos los mutex y por consiguiente a los procesos bloqueados, asociados al proceso a liberar **/
-
 static void liberar_mutex(){
- 
+
    for(int i = 0; i < NUM_MUT_PROC; i++){
       if(p_proc_actual->vectorMutexAbiertos[i] != NULL){
-        p_proc_actual->vectorMutexAbiertos[i]->id_proc_actual = -1;
-		desbloqueo_cerrar_mutex(lista_bloqueados_mutex,p_proc_actual->vectorMutexAbiertos[i]);
-		p_proc_actual->vectorMutexAbiertos[i] = NULL; //no haria falta 
-
+		if(p_proc_actual->vectorMutexAbiertos[i]->id_proc_actual == p_proc_actual->id){
+			p_proc_actual->vectorMutexAbiertos[i]->id_proc_actual = -1;
+		    desbloqueo_cerrar_mutex(lista_bloqueados_mutex,p_proc_actual->vectorMutexAbiertos[i]);
+			p_proc_actual->vectorMutexAbiertos[i]->n_veces_abierto--;
+		   if(p_proc_actual->vectorMutexAbiertos[i]->n_veces_abierto <= 0){
+			    printk("->SE VA A ELIMINAR EL MUTEX %s\n",p_proc_actual->vectorMutexAbiertos[i]->nombre);
+				int indice = buscar_indice(p_proc_actual->vectorMutexAbiertos[i]->nombre);
+				int anterior = fijar_nivel_int(NIVEL_3);
+				num_actual_mutex--;
+				vectorMutex[indice] = NULL; 
+				fijar_nivel_int(anterior);
+				desbloqueo_lista_abrir_mutex();
+				printk("->SE ELIMINA UN MUTEX QUE NO ESTA ABIERTO POR NINGUN PROCESO\n");
+		   }	
+		   
+		} 
+		else{  
+           p_proc_actual->vectorMutexAbiertos[i]->n_veces_abierto--;
+		   if(p_proc_actual->vectorMutexAbiertos[i]->n_veces_abierto <= 0){
+			printk("->SE VA A ELIMINAR EL MUTEX %s\n",p_proc_actual->vectorMutexAbiertos[i]->nombre);
+			int indice = buscar_indice(p_proc_actual->vectorMutexAbiertos[i]->nombre);
+			int anterior = fijar_nivel_int(NIVEL_3);
+	        num_actual_mutex--;
+	        vectorMutex[indice] = NULL; 
+	        fijar_nivel_int(anterior);
+			desbloqueo_lista_abrir_mutex();
+			printk("->SE ELIMINA UN MUTEX QUE NO ESTA ABIERTO POR NINGUN PROCESO\n");
+		   } 
+		}	
 	  } 
 
 
@@ -198,7 +244,6 @@ static void liberar_mutex(){
  */
 static void liberar_proceso(){
 	BCP * p_proc_anterior;
-
 	liberar_mutex();
 	liberar_imagen(p_proc_actual->info_mem); /* liberar mapa */
 
@@ -343,7 +388,7 @@ static void desbloqueo_reloj(){
 static void int_reloj(){
 
 	printk("-> TRATANDO INT. DE RELOJ\n");
-	printk("INTERRUPCIONES RESTANTES: %d\n",p_proc_actual->interrupciones);
+	//printk("INTERRUPCIONES RESTANTES: %d\n",p_proc_actual->interrupciones);
 
     num_int_total++;	
 
@@ -586,8 +631,9 @@ static void aux_bloqueo(lista_BCPs * lista_bloqueados_mutex){
 
 }
 
+//Funcion auxiliar que devuelve la primera posicion libre de una lista dada su longitud
 static int id_vector_mutex(struct Mutex_t *vector[],int length){
-	int sol = 0;
+	int sol = -1;
 	for (int i = 0; i < length; i++){
 		if(vector[i] == NULL){
             //primer espacio libre del vector de mutex que esta libre
@@ -595,45 +641,49 @@ static int id_vector_mutex(struct Mutex_t *vector[],int length){
 			break;
 		} 
 	} 
-	return sol;
+	return sol; 
 
 } 
 
+//Funcion que abre el mutex especificado por su nombre y asigna ese mutex a la lista de mutex abierto por el proceso, devuelve negativo si
+//se ha sobrepasado el numero de mutex abierto por un proceso o no existe ese mutex
 int abrir_mutex(char *nombre){
     printk("Nombre: %s\n", nombre);
+	if(p_proc_actual->num_mutex_abiertos >= NUM_MUT_PROC){
+		printk("-> SE TIENEN ABIERTOS EL NUMERO MAXIMO DE DESCRIPTORES\n");
+		return -2;
+	} 
+	//Se busca al mutex
 	int i;
 	for (i = 0; i < NUM_MUT; i++){
 		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
 			printk("Se encuentra mutex\n");
-			int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,p_proc_actual->num_mutex_abiertos);
+			printk("->Descriptor %d\n",i);
+			int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,NUM_MUT_PROC);
+			if(pos == -1){
+				//no deberia de llegar aqui
+				printk("-> NO HAY POSICION LIBRE");
+				break;
+			} 
+		   	
 			p_proc_actual->vectorMutexAbiertos[pos] = vectorMutex[i]; 
 	        p_proc_actual->num_mutex_abiertos++; 
+			vectorMutex[i]->n_veces_abierto++; 
 			//Se ha guardado el mutex
 			return i; //se encuentra el mutex en el vector de mutex
 		} 
 		
 	} 
+	printk("->NO SE ENCUENTRA EL MUTEX ESPEFICICADO\n");
 	return -1; //no se encuentra
 
 
-} 
-
-static int buscar_indice(char *nombre){
-    int i;
-	for (i = 0; i < NUM_MUT; i++){
-		if(vectorMutex[i] != NULL && strcmp(vectorMutex[i]->nombre,nombre)== 0){
-			printk("Se encuentra mutex en la pos %d\n",i);
-			return i; //se encuentra el mutex en el vector de mutex
-		} 
-		
-	} 
-	printk("No se encuentra mutex");
-	return -1; //no se encuentra
 } 
 
  
 
-
+//funcion que crea un mutex dado los argumentos y se comprueba si se han pasado bien los argumentos o se ha excedido el numero
+//maximo de mutex. Tambien se asocia al proceso.
 int crear_mutex(char *nombre, int tipo){
 	printk("Nombre: %s\n", nombre);
 	printk("Llega 1 \n");
@@ -651,6 +701,7 @@ int crear_mutex(char *nombre, int tipo){
 	while(num_actual_mutex >= NUM_MUT){
         //el proceso se bloquea y se produce un cambio de contexto
 	   printk("->SE HA SUPERADO EL NUMERO MAXIMO DE DESCRIPTORES\n");
+	   printk("->PROCESO %d SE BLOQUEA\n",p_proc_actual->id);
        aux_bloqueo(&lista_bloqueados_abrir_mutex);
 
 		//return -3; //se ha excedido el numero máximo de mutex en el sistema
@@ -663,24 +714,34 @@ int crear_mutex(char *nombre, int tipo){
 	Mutex * newMutex;
 	newMutex = malloc(sizeof(Mutex));
 	newMutex->id_proc_actual = -1; // no hay proceso asociado al mutex
+	newMutex->n_veces_abierto = 1; //se asocia directamente al proceso
 	strcpy(newMutex->nombre,nombre);
 	newMutex->tipo = tipo;
 	newMutex->n_locks = 0;
 	int mutexid = id_vector_mutex(vectorMutex,NUM_MUT);
-	//posible inhibicion de interrupciones
 	int anterior = fijar_nivel_int(NIVEL_3);
 	vectorMutex[mutexid] = newMutex; 
 	num_actual_mutex++;
 	fijar_nivel_int(anterior);
 	printk("Llega 6 \n");
+	int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,NUM_MUT_PROC);
+	if(pos == -1){
+        printk("->NO SE PUEDE ASOCIAR EL MUTEX CON EL PROCESO\n"); //creado pero no asociado 
+		vectorMutex[mutexid]->n_veces_abierto = 0;
+		return mutexid;
+	} 
+	p_proc_actual->vectorMutexAbiertos[pos] = newMutex;
+	p_proc_actual->num_mutex_abiertos++; 
+	printk("Llega 7 \n");
     //mutex creado y guardado
-	return num_actual_mutex;
+	return mutexid;
 
 }
 
 
 
-
+//metodo del kernel que usa el mutex por parte del proceso, devuelve negativo si el mutex esta en posesion de otro proceso o si es no recursivo
+//y se hace mas de un lock en el.
 int lock(unsigned int mutexid){
 	if(vectorMutex[mutexid]->id_proc_actual != -1 && vectorMutex[mutexid]->id_proc_actual != p_proc_actual->id){
 		//se encuentra usado por un proceso distinto al actual
@@ -716,7 +777,6 @@ int lock(unsigned int mutexid){
 } 
 
 //método auxiliar que desbloquea un proceso asociado a un mutex y lo inserta en la lista de procesos listos
-
 static void desbloqueoProceso(lista_BCPs lista_bloqueados, Mutex  * mutex){
    
    for (int i = 0; i < MAX_PROC; i++){
@@ -736,13 +796,12 @@ static void desbloqueoProceso(lista_BCPs lista_bloqueados, Mutex  * mutex){
 
 } 
 
-//metood auxilar que devuelve la posición del mutex en la lista de mutex que tiene un proceso
-
+//metood auxilar que devuelve la posición del mutex en la lista de mutex que tiene un proceso, negativo si no lo encuentra o no esta usando el mutex
 static int get_id_proc(int pos_vector_mutex){
   
   if(vectorMutex[pos_vector_mutex]->id_proc_actual != p_proc_actual->id){
-     //el proceso no tiene ese mutex
-	 return -1;
+     //el proceso no esta usando ese mutex
+	 return -2;
   } 
 
 
@@ -754,16 +813,13 @@ static int get_id_proc(int pos_vector_mutex){
 	} 
 	return -1; //no se encuentra
 
-
-
-
 } 
 
 
 int unlock(unsigned int mutexid){
 	int pos = get_id_proc(mutexid);
-	if(pos == -1){
-		return -1; //el proceso no tiene ese mutex abierto
+	if(pos < 0){
+		return -1; //el proceso no tiene ese mutex abierto o no lo esta usando
 	}
 	if(p_proc_actual->vectorMutexAbiertos[pos]->tipo == RECURSIVO){
 		p_proc_actual->vectorMutexAbiertos[pos]->n_locks--;
@@ -796,38 +852,68 @@ int unlock(unsigned int mutexid){
 }
 
 
-static void desbloqueo_lista_abrir_mutex(){
-   
-   // se desbloquea si hay mutex bloqueado
-   if(lista_bloqueados_abrir_mutex.primero != NULL){ 
-   // desbloqueo  crear mutex
-   BCP * primero;
-   primero = lista_bloqueados_abrir_mutex.primero;
-   int anterior = fijar_nivel_int(NIVEL_3);
-   eliminar_elem(&lista_bloqueados_abrir_mutex,primero);
-   primero->estado = LISTO;
-   insertar_ultimo(&lista_listos,primero);
-   fijar_nivel_int(anterior);
-   } 
+
+//metood auxilar que devuelve la posición del mutex en la lista de mutex que tiene un proceso, negativo si no lo encuentra
+static int get_pos_proc(int pos_vector_mutex){
+  int sol = -1;
+  for (int i = 0; i <= NUM_MUT_PROC; i++){
+		if(p_proc_actual->vectorMutexAbiertos[i] != NULL && strcmp(p_proc_actual->vectorMutexAbiertos[i]->nombre ,vectorMutex[pos_vector_mutex]->nombre)== 0){
+			sol = i; //se encuentra el mutex en el vector de mutex
+			break;
+		} 
+		
+	} 
+	return sol; //no se encuentra
+
 } 
 
 
-
-
 int cerrar_mutex(unsigned int mutexid){
-	int pos = get_id_proc(mutexid);
-	if(pos == -1){
+	int pos = get_pos_proc(mutexid);
+	if(pos < 0){
 		return -1; //el proceso no tiene ese mutex abierto
 	}
 	//se desbloquean todos los procesos asociados a ese mutex y se borra de la lista de mutex del sistema
-	p_proc_actual->vectorMutexAbiertos[mutexid] = NULL;
+	if(p_proc_actual->id == vectorMutex[mutexid]->id_proc_actual){
+		//el proceso esta usando el mutex
+		vectorMutex[mutexid]->id_proc_actual = -1; //se deja de asociar el mutex con el proceso
+		vectorMutex[mutexid]->n_locks = 0; //se eliminan el numero de locks independientemente del tipo de mutex
+		p_proc_actual->vectorMutexAbiertos[pos] = NULL; //se elimina el mutex de la lista de mutex abiertos por el proceso
+	    p_proc_actual->num_mutex_abiertos--; //se reduce el numero de mutex abiertos por el procesos
+		//se debe comprobar cuantas veces ha sido abierto y se desbloquean procesos
+		desbloqueo_cerrar_mutex(lista_bloqueados_mutex,vectorMutex[mutexid]);
+		vectorMutex[mutexid]->n_veces_abierto--;
+		printk("->SE HA CERRADO UN MUTEX QUE ESTABA USANDO EL PROCESO\n");
+		if(vectorMutex[mutexid]->n_veces_abierto <= 0){
+			//Se elimina mutex
+			printk("->SE VA A ELIMINAR EL MUTEX %s\n",vectorMutex[mutexid]->nombre);
+			int anterior = fijar_nivel_int(NIVEL_3);
+	        num_actual_mutex--;
+	        vectorMutex[mutexid] = NULL; 
+	        fijar_nivel_int(anterior);
+			desbloqueo_lista_abrir_mutex();
+			printk("->SE ELIMINA UN MUTEX QUE NO ESTA ABIERTO POR NINGUN PROCESO\n");
+		} 		 
+
+	} 
+	else{ 
+	p_proc_actual->vectorMutexAbiertos[pos] = NULL;
 	p_proc_actual->num_mutex_abiertos--; 
-	desbloqueo_cerrar_mutex(lista_bloqueados_mutex,vectorMutex[mutexid]);
-	int anterior = fijar_nivel_int(NIVEL_3);
-	num_actual_mutex--;
-	vectorMutex[mutexid] = NULL; 
-	fijar_nivel_int(anterior);
-	desbloqueo_lista_abrir_mutex();
+    vectorMutex[mutexid]->n_veces_abierto--;
+	printk("->SE HA CERRADO UN MUTEX QUE ESTABA ABIERTO POR EL PROCESO\n");
+	if(vectorMutex[mutexid]->n_veces_abierto <= 0){ 
+		printk("->SE VA A ELIMINAR EL MUTEX %s\n",vectorMutex[mutexid]->nombre);
+		int anterior = fijar_nivel_int(NIVEL_3);
+		num_actual_mutex--;
+		vectorMutex[mutexid] = NULL; 
+		fijar_nivel_int(anterior);
+		desbloqueo_lista_abrir_mutex();
+		printk("->SE ELIMINA UN MUTEX QUE NO ESTA ABIERTO POR NINGUN PROCESO\n");
+
+		
+	}	
+	  return 1;
+   }	
 	
 } 
 
@@ -971,9 +1057,7 @@ int main(){
 	iniciar_cont_teclado();		/* inici cont. teclado */
 
 	iniciar_tabla_proc();		/* inicia BCPs de tabla de procesos */
-    //iniciar_vector_struct (); // Inicializa el vector de struct
-    
-
+   
 	/* crea proceso inicial */
 	if (crear_tarea((void *)"init")<0)
 		panico("no encontrado el proceso inicial");
