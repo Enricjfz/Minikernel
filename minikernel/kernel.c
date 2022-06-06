@@ -738,13 +738,39 @@ int crear_mutex(char *nombre, int tipo){
 
 }
 
+//metood auxilar que devuelve la posición del mutex en la lista de mutex que tiene un proceso, negativo si no lo encuentra
+static int get_pos_proc(int pos_vector_mutex){
+  int sol = -1;
+  for (int i = 0; i <= NUM_MUT_PROC; i++){
+		if(p_proc_actual->vectorMutexAbiertos[i] != NULL && strcmp(p_proc_actual->vectorMutexAbiertos[i]->nombre ,vectorMutex[pos_vector_mutex]->nombre)== 0){
+			sol = i; //se encuentra el mutex en el vector de mutex
+			break;
+		} 
+		
+	} 
+	return sol; //no se encuentra
+
+}
+
 
 
 //metodo del kernel que usa el mutex por parte del proceso, devuelve negativo si el mutex esta en posesion de otro proceso o si es no recursivo
 //y se hace mas de un lock en el.
 int lock(unsigned int mutexid){
+    //comprobar que existe el mutex
+	if(vectorMutex[mutexid] == NULL){
+		printk("->LOCK A UN PROCESO QUE NO EXISTE");
+		return -3;
+	} 
+	//comprobar que el proceso tiene el mutex
+	int pos = get_pos_proc(mutexid);
+	if(pos < 0){
+		printk("->LOCK A UN PROCESO QUE NO ESTA ABIERTO POR EL USUARIO");
+		return -4; //el proceso no tiene ese mutex abierto
+	}
 	if(vectorMutex[mutexid]->id_proc_actual != -1 && vectorMutex[mutexid]->id_proc_actual != p_proc_actual->id){
 		//se encuentra usado por un proceso distinto al actual
+		printk("PROCESO %d SE BLOQUEA AL HACER UN LOCK A UN MUTEX NO LIBRE",p_proc_actual->id);
 		int anterior = fijar_nivel_int(NIVEL_3);
 		vectorMutex[mutexid]->proc_bloqueados[p_proc_actual->id] = p_proc_actual; 
 		fijar_nivel_int(anterior);
@@ -761,17 +787,20 @@ int lock(unsigned int mutexid){
 			
 		} 
 		else{
+			printk("SE HACE LOCK A UN MUTEX NO RECURSIVO");
 			return -2; //no se puede hacer mas de un lock si este no es recursivo
 		} 
 	} 
 	else{
        //el mutex esta libre
+	   printk("PROCESO %d ADQUIERE MUTEX",p_proc_actual->id);
 	   int anterior = fijar_nivel_int(NIVEL_3);
 	   vectorMutex[mutexid]->id_proc_actual = p_proc_actual->id;
+	   vectorMutex[mutexid]->n_locks++;
 	   fijar_nivel_int(anterior);
 	   
 	} 
-
+   printk("LOCK HECHO");
    return 1;
    
 } 
@@ -801,6 +830,7 @@ static int get_id_proc(int pos_vector_mutex){
   
   if(vectorMutex[pos_vector_mutex]->id_proc_actual != p_proc_actual->id){
      //el proceso no esta usando ese mutex
+	 printk("->SE ESTA HACIENDO UNLOCK A UN MUTEX QUE NO ESTA USANDO EL PROCESO\n");
 	 return -2;
   } 
 
@@ -817,8 +847,14 @@ static int get_id_proc(int pos_vector_mutex){
 
 
 int unlock(unsigned int mutexid){
+	//comprobar que existe el mutex
+	if(vectorMutex[mutexid] == NULL){
+		printk("->UNLOCK A UN PROCESO QUE NO EXISTE");
+		return -3;
+	} 
 	int pos = get_id_proc(mutexid);
 	if(pos < 0){
+		printk("->SE ESTA HACIENDO UNLOCK A UN MUTEX QUE NO ESTA ABIERTO AL PROCESO\n");
 		return -1; //el proceso no tiene ese mutex abierto o no lo esta usando
 	}
 	if(p_proc_actual->vectorMutexAbiertos[pos]->tipo == RECURSIVO){
@@ -851,21 +887,6 @@ int unlock(unsigned int mutexid){
 
 }
 
-
-
-//metood auxilar que devuelve la posición del mutex en la lista de mutex que tiene un proceso, negativo si no lo encuentra
-static int get_pos_proc(int pos_vector_mutex){
-  int sol = -1;
-  for (int i = 0; i <= NUM_MUT_PROC; i++){
-		if(p_proc_actual->vectorMutexAbiertos[i] != NULL && strcmp(p_proc_actual->vectorMutexAbiertos[i]->nombre ,vectorMutex[pos_vector_mutex]->nombre)== 0){
-			sol = i; //se encuentra el mutex en el vector de mutex
-			break;
-		} 
-		
-	} 
-	return sol; //no se encuentra
-
-} 
 
 
 int cerrar_mutex(unsigned int mutexid){
