@@ -79,8 +79,8 @@ ALGO COMENTE ESTA PARTE Y DESCOMENTE LA PRUEBA CORRESPONDIENTE */
 	if (crear_proceso("prueba_mutex1")<0)
 		printf("Error creando prueba_mutex1\n");
 
-*/
 
+*/
 /*
  //SEGUNDA PRUEBA DE MUTEX
 	if (crear_proceso("prueba_mutex2")<0)
@@ -95,15 +95,16 @@ ALGO COMENTE ESTA PARTE Y DESCOMENTE LA PRUEBA CORRESPONDIENTE */
 */
 
 //SEGUNDA PRUEBA DE ROUND-ROBIN
+/*
 	if (crear_proceso("prueba_RR2")<0)
 		printf("Error creando prueba_RR2\n");
 
-
+*/
  //PRUEBA DEL TERMINAL
- /*
+ 
 	if (crear_proceso("prueba_term")<0)
 		printf("Error creando prueba_term\n");
-*/
+
 
 	printf("init: termina\n");
 	return 0; 

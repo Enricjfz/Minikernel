@@ -178,7 +178,7 @@ static void desbloqueo_cerrar_mutex(lista_BCPs * lista_bloqueados,int indice){
     
     printk("SE DESBLOQUEAN LOS PROCESOS DEL MUTEX: %s\n",vectorMutex[indice]->nombre);
 	 for (int i = 0; i < MAX_PROC; i++){
-	   printk("Iter: %d\n",i);
+	   //printk("Iter: %d\n",i);
        if(vectorMutex[indice]->proc_bloqueados[i] != NULL){
 		   BCP * proc_bloqueado;
 		   proc_bloqueado = vectorMutex[indice]->proc_bloqueados[i];
@@ -205,10 +205,10 @@ static void liberar_mutex(){
       if(p_proc_actual->vectorMutexAbiertos[i] != NULL){
 		if(p_proc_actual->vectorMutexAbiertos[i]->id_proc_actual == p_proc_actual->id){
 			int indice = buscar_indice(p_proc_actual->vectorMutexAbiertos[i]->nombre);
-			printk("LLEGO LIBERAR 1\n");
+			//printk("LLEGO LIBERAR 1\n");
 			p_proc_actual->vectorMutexAbiertos[i]->id_proc_actual = -1;
 		    desbloqueo_cerrar_mutex(&lista_bloqueados_mutex,indice);
-			printk("LLEGO LIBERAR 2\n");
+			//printk("LLEGO LIBERAR 2\n");
 			p_proc_actual->vectorMutexAbiertos[i]->n_veces_abierto--;
 		   if(p_proc_actual->vectorMutexAbiertos[i]->n_veces_abierto <= 0){
 			    printk("->SE VA A ELIMINAR EL MUTEX %s\n",p_proc_actual->vectorMutexAbiertos[i]->nombre);
@@ -415,9 +415,9 @@ static void int_reloj(){
     if(lista_listos.primero != NULL)
    {
 	  p_proc_actual->ticks_round_robin--; //se reduce la rodaja del proceso (siempre que no sea el proceso nulo)
-	  printk("ROUND ROBIN: %d\n",p_proc_actual->ticks_round_robin);
+	  //printk("ROUND ROBIN: %d\n",p_proc_actual->ticks_round_robin);
 	  if(p_proc_actual->ticks_round_robin == 0){
-		printk("ROUND ROBIN LLEGA A CERO\n");
+		//printk("ROUND ROBIN LLEGA A CERO\n");
        //se le ha acabado el tiempo al proceso, se programa una interrupcion software
 	   activar_int_SW();
 	} 
@@ -612,7 +612,7 @@ int dormir(unsigned int segundos){
 //Funcion del kernel que devuelve el numero de interrupciones ocurridas desde el arranque, si el argumento 
 //de entrada es distinto de null, devuelve el numero de interrupciones de sistema y de usuario
 int tiempos_proceso(struct tiempos_ejec *t_ejec){
-	printk("LLEGA a tiempos proceso\n");
+	//printk("LLEGA a tiempos proceso\n");
    if(t_ejec != NULL)
   {
 	  acc_t_ejec = 1;
@@ -691,28 +691,40 @@ int abrir_mutex(char *nombre){
 
 } 
 
+
+//funcion auxiliar que inicializa a null el vector de punteros de procesos del mutex
+static void inicializar_vector(Mutex * mutex){
+int i;
+for (i = 0; i < MAX_PROC; i++){
+  mutex->proc_bloqueados[i] = NULL; 
+  
+} 
+
+
+} 
+
  
 
 //funcion que crea un mutex dado los argumentos y se comprueba si se han pasado bien los argumentos o se ha excedido el numero
 //maximo de mutex. Tambien se asocia al proceso.
 int crear_mutex(char *nombre, int tipo){
-	printk("Nombre: %s\n", nombre);
-	printk("Llega 1 \n");
+	//printk("Nombre: %s\n", nombre);
+	//printk("Llega 1 \n");
 	if(tipo != NO_RECURSIVO && tipo != RECURSIVO){
 		printk("->SE HA INTRODUCIDO UN TIPO QUE NO EXISTE\n");
 		return -1; //no existe ese tipo de mutex
 	} 
 	int length = strlen(nombre);
-	printk("Llega 2 \n");
+	//printk("Llega 2 \n");
 	if(length > MAX_NOM_MUT){
 	    printk("->SE HA SUPERADO EL TAMANO MAXIMO DE DESCRIPTORES\n");
 		return -2; //el nombre del mutex es mayor que máximo
 	}  
-	printk("Llega 3 \n");
+	//printk("Llega 3 \n");
 	if(buscar_indice(nombre) != -1){
 		return -4; //existe un mutex con ese nombre
 	} 
-    printk("Llega 4 \n");
+    //printk("Llega 4 \n");
 	while(num_actual_mutex >= NUM_MUT){
         //el proceso se bloquea y se produce un cambio de contexto
 	   printk("->SE HA SUPERADO EL NUMERO MAXIMO DE DESCRIPTORES\n");
@@ -722,7 +734,7 @@ int crear_mutex(char *nombre, int tipo){
 		//return -3; //se ha excedido el numero máximo de mutex en el sistema
 	} 
 
-    printk("Llega 5 \n");
+    //printk("Llega 5 \n");
 	Mutex * newMutex;
 	newMutex = malloc(sizeof(Mutex));
 	newMutex->id_proc_actual = -1; // no hay proceso asociado al mutex
@@ -730,12 +742,13 @@ int crear_mutex(char *nombre, int tipo){
 	strcpy(newMutex->nombre,nombre);
 	newMutex->tipo = tipo;
 	newMutex->n_locks = 0;
+	inicializar_vector(newMutex);
 	int mutexid = id_vector_mutex(vectorMutex,NUM_MUT);
 	int anterior = fijar_nivel_int(NIVEL_3);
 	vectorMutex[mutexid] = newMutex; 
 	num_actual_mutex++;
 	fijar_nivel_int(anterior);
-	printk("Llega 6 \n");
+	//printk("Llega 6 \n");
 	int pos = id_vector_mutex(p_proc_actual->vectorMutexAbiertos,NUM_MUT_PROC);
 	if(pos == -1){
         printk("->NO SE PUEDE ASOCIAR EL MUTEX CON EL PROCESO\n"); //creado pero no asociado 
@@ -744,7 +757,7 @@ int crear_mutex(char *nombre, int tipo){
 	} 
 	p_proc_actual->vectorMutexAbiertos[pos] = newMutex;
 	p_proc_actual->num_mutex_abiertos++; 
-	printk("Llega 7 \n");
+	//printk("Llega 7 \n");
     //mutex creado y guardado
 	return mutexid;
 
@@ -974,6 +987,14 @@ int leer_caracter() {
 	return c; 
 } 
 
+static void inicializar_vector_mutex(){
+int i;
+for (i = 0; i < NUM_MUT; i++){
+	vectorMutex[i] = NULL; 
+} 
+
+} 
+
 /*
  * Tratamiento de llamada al sistema obtener_id_pr
  * 
@@ -1098,6 +1119,7 @@ int main(){
 	iniciar_cont_teclado();		/* inici cont. teclado */
 
 	iniciar_tabla_proc();		/* inicia BCPs de tabla de procesos */
+	inicializar_vector_mutex(); /* inicia el vector de mutex */
    
 	/* crea proceso inicial */
 	if (crear_tarea((void *)"init")<0)
